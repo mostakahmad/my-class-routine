@@ -1,4 +1,4 @@
-const CACHE_NAME = "cis-routine-v1";
+const CACHE_NAME = "cis-routine-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const ASSETS = [
   "./js/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/og-image.png",
 ];
 
 self.addEventListener("install", (event) => {
