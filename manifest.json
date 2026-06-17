@@ -1,0 +1,24 @@
+{
+  "name": "CIS Class Routine",
+  "short_name": "CIS Routine",
+  "description": "Department of CIS class routine reminder — Summer 2026",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#060d1a",
+  "theme_color": "#060d1a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
