@@ -15,18 +15,45 @@
 //     }
 //   }
 
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+
+
+
 const BROADCAST_CONFIG = {
-  enabled: false,
+  enabled: true,
   adminPin: "cis2026",
   broadcastDoc: "latest",
   subscribersCollection: "cis_subscribers",
   broadcastsCollection: "cis_broadcasts",
   firebase: {
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: "",
+    apiKey: "AIzaSyCzjfP5yHWgI1Vi4IpOlGoPGiEXPpqTs5M",
+    authDomain: "cis-my-routine.firebaseapp.com",
+    projectId: "cis-my-routine",
+    storageBucket: "cis-my-routine.firebasestorage.app",
+    messagingSenderId: "178368542692",
+    appId: "1:178368542692:web:472150a07e3f1a58d039f1",
+    measurementId: "G-V9E9S2Y9ZV"
   },
 };
+
+
+// const firebaseConfig = {
+//   apiKey: "AIzaSyCzjfP5yHWgI1Vi4IpOlGoPGiEXPpqTs5M",
+//   authDomain: "cis-my-routine.firebaseapp.com",
+//   projectId: "cis-my-routine",
+//   storageBucket: "cis-my-routine.firebasestorage.app",
+//   messagingSenderId: "178368542692",
+//   appId: "1:178368542692:web:472150a07e3f1a58d039f1",
+//   measurementId: "G-V9E9S2Y9ZV"
+// };
+
+// // Initialize Firebase
+// const app = initializeApp(firebaseConfig);
+// const analytics = getAnalytics(app);
