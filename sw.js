@@ -1,10 +1,13 @@
-const CACHE_NAME = "cis-routine-v2";
+const CACHE_NAME = "cis-routine-v3";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./css/style.css",
   "./js/routine-data.js",
+  "./js/reminder-settings.js",
+  "./js/broadcast-config.js",
+  "./js/broadcast.js",
   "./js/scheduler.js",
   "./js/notifications.js",
   "./js/app.js",
@@ -12,6 +15,8 @@ const ASSETS = [
   "./icons/icon-512.png",
   "./icons/og-image.png",
 ];
+
+let cachedReminderOffsets = [120, 60, 30, 15];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -58,6 +63,24 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "CHECK_REMINDERS") {
     event.waitUntil(runBackgroundCheck());
   }
+
+  if (event.data?.type === "SYNC_REMINDER_SETTINGS") {
+    if (Array.isArray(event.data.offsets)) {
+      cachedReminderOffsets = event.data.offsets;
+    }
+  }
+
+  if (event.data?.type === "LOCAL_BROADCAST") {
+    const { title, body, tag } = event.data.payload;
+    event.waitUntil(
+      self.registration.showNotification(title, {
+        body,
+        icon: "./icons/icon-192.png",
+        tag: tag || "broadcast",
+        vibrate: [300, 100, 300],
+      })
+    );
+  }
 });
 
 let reminderInterval = null;
@@ -69,9 +92,36 @@ function startReminderLoop() {
   }, 30000);
 }
 
+async function loadReminderOffsets() {
+  try {
+    const cache = await caches.open("cis-app-settings");
+    const res = await cache.match("reminder-offsets");
+    if (res) {
+      const offsets = await res.json();
+      if (Array.isArray(offsets) && offsets.length) {
+        cachedReminderOffsets = offsets;
+      }
+    }
+  } catch {
+    /* use defaults */
+  }
+  return cachedReminderOffsets;
+}
+
+function formatOffsetLabelSW(minutes) {
+  if (minutes >= 60 && minutes % 60 === 0) {
+    const h = minutes / 60;
+    return h === 1 ? "1 hour" : `${h} hours`;
+  }
+  return `${minutes} min`;
+}
+
 async function runBackgroundCheck() {
   const clients = await self.clients.matchAll({ type: "window" });
   if (clients.length > 0) return;
+
+  const offsets = await loadReminderOffsets();
+  if (!offsets.length) return;
 
   const now = new Date();
   const upcoming = [];
@@ -103,7 +153,7 @@ async function runBackgroundCheck() {
     });
   }
 
-  [120, 30].forEach((offset) => {
+  offsets.forEach((offset) => {
     upcoming.forEach((event) => {
       const reminderTime = new Date(event.start.getTime() - offset * 60000);
       const windowEnd = new Date(reminderTime.getTime() + 60000);
@@ -117,12 +167,8 @@ async function runBackgroundCheck() {
 
           await cache.put(key, new Response("1"));
           const roomPart = event.room ? ` — Room ${event.room}` : "";
-          const title =
-            offset === 120 ? "Class in 2 hours" : "Class in 30 minutes";
-          const body =
-            offset === 120
-              ? `${event.title}${roomPart} starts soon`
-              : `${event.title}${roomPart} at ${event.timeRange}`;
+          const title = `Class in ${formatOffsetLabelSW(offset)}`;
+          const body = `${event.title}${roomPart} · ${event.timeRange}`;
 
           self.registration.showNotification(title, {
             body,

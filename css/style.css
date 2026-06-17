@@ -777,6 +777,204 @@ body {
   color: var(--gold);
 }
 
+/* Reminder times settings */
+.settings-block-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.settings-block-desc {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin: 0.2rem 0 0;
+}
+
+.reminder-times-card {
+  padding: 1rem 1.1rem;
+}
+
+.reminder-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 1rem 0;
+}
+
+.reminder-toggle-row {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+}
+
+.reminder-toggle-row:last-child {
+  border-bottom: none;
+}
+
+.reminder-toggle-label {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.custom-reminder-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.form-input,
+.form-textarea {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.88rem;
+  padding: 0.65rem 0.85rem;
+  width: 100%;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  border-color: var(--border-gold);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.12);
+}
+
+.custom-reminder-row .form-input {
+  flex: 1;
+}
+
+.btn-add {
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-sm);
+  color: var(--gold-light);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--font);
+  font-size: 0.82rem;
+  font-weight: 600;
+  gap: 0.3rem;
+  padding: 0 1rem;
+  white-space: nowrap;
+}
+
+.btn-add:active {
+  transform: scale(0.97);
+}
+
+.custom-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  min-height: 0;
+}
+
+.offset-chip {
+  align-items: center;
+  background: rgba(77, 159, 255, 0.1);
+  border: 1px solid rgba(77, 159, 255, 0.3);
+  border-radius: 20px;
+  color: var(--accent-blue);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+}
+
+.offset-chip button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0.7;
+  padding: 0;
+}
+
+/* Broadcast card */
+.broadcast-card {
+  padding: 1rem 1.1rem;
+}
+
+.broadcast-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.broadcast-icon {
+  background: rgba(167, 139, 250, 0.15);
+  color: var(--accent-purple);
+}
+
+.subscriber-count {
+  color: var(--accent-green);
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+}
+
+.field-label {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin: 0.75rem 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.btn-send {
+  align-items: center;
+  background: linear-gradient(135deg, var(--gold), #b8860b);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--bg);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--font);
+  font-size: 0.9rem;
+  font-weight: 700;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  width: 100%;
+}
+
+.btn-send:active {
+  transform: scale(0.98);
+}
+
+.btn-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.broadcast-feedback {
+  font-size: 0.78rem;
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
+.broadcast-feedback.is-success { color: var(--accent-green); }
+.broadcast-feedback.is-error { color: #f87171; }
+.broadcast-feedback.is-warn { color: var(--accent-orange); }
+
 .info-card { padding: 0.5rem 0; }
 
 .info-row {

@@ -1,15 +1,16 @@
 # CIS Class Routine Reminder
 
-A simple static web app for the **Department of CIS — Summer 2026** class routine. Shows live tracking of your current/next class and sends reminders **2 hours** and **30 minutes** before each slot.
+A simple static web app for the **Department of CIS — Summer 2026** class routine. Shows live tracking of your current/next class and sends configurable reminders before each slot.
 
 ## Features
 
 - Live "Now" and "Next Class" tracking with countdown
 - Today's schedule with active slot highlight
 - Full weekly routine table
-- Browser/PWA notifications (2h and 30min before class)
-- Offline support via Service Worker
-- Ready for GitHub Pages and future Capacitor APK build
+- **Configurable reminders** — 2h, 1h, 30m, 15m (toggle each) + custom minutes
+- **Broadcast messages** to all subscribed devices (via Firebase)
+- Browser/PWA notifications + offline Service Worker
+- Ready for GitHub Pages and Capacitor APK
 
 ## Quick Start (Local)
 
@@ -62,14 +63,52 @@ npx cap open android
 
 `notifications.js` already includes a Capacitor stub — native local notifications will work once the plugin is installed.
 
+## Reminder Settings
+
+Open **Settings** tab:
+
+- Toggle **2 hours / 1 hour / 30 min / 15 min** reminders
+- Add **custom** minutes (e.g. 45) via the input field
+- Enable the main **Class reminders** toggle and allow notifications
+
+## Broadcast to All Devices
+
+Students: enable reminders — your device auto-subscribes.
+
+Teacher: use **Settings → Broadcast message** with admin PIN.
+
+### Firebase setup (required for cross-device broadcast)
+
+1. Create a free project at [Firebase Console](https://console.firebase.google.com)
+2. Enable **Firestore Database**
+3. Copy web app config into [`js/broadcast-config.js`](js/broadcast-config.js)
+4. Set `enabled: true` and change `adminPin`
+5. Firestore rules example:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /cis_broadcasts/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /cis_subscribers/{id} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+> Tighten write rules in production. Without Firebase, broadcast only notifies the current device.
+
 ## Edit Routine
 
 Update schedule data in [`js/routine-data.js`](js/routine-data.js). If you change the routine, also update the duplicate data in [`sw.js`](sw.js) (used for background reminders when the app is closed).
 
 ## Reminder Slots
 
-All scheduled slots trigger reminders: MIS101, DM classes, and Counseling Hour.  
-Friday = Holiday, Saturday = Day Off (no reminders).
+All scheduled slots can trigger reminders when enabled: MIS101, DM, Counseling.  
+Friday = Holiday, Saturday = Day Off.
 
 Uses your **device local timezone** automatically.
-# my-class-routine

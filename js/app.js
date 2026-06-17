@@ -318,6 +318,126 @@ function renderRoutineTable(now) {
   }
 }
 
+function updateReminderUI() {
+  const summary = document.getElementById("reminder-summary");
+  const infoDesc = document.getElementById("info-reminder-desc");
+  const text = getReminderSummaryText();
+  if (summary) summary.textContent = text;
+  if (infoDesc) infoDesc.textContent = text;
+
+  const container = document.getElementById("reminder-toggles");
+  const settings = loadReminderSettings();
+  container.innerHTML = "";
+
+  PRESET_OFFSETS.forEach(({ minutes, label }) => {
+    const row = document.createElement("div");
+    row.className = "reminder-toggle-row";
+
+    const lbl = document.createElement("span");
+    lbl.className = "reminder-toggle-label";
+    lbl.textContent = label;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-toggle";
+    btn.setAttribute("aria-pressed", settings.presets[minutes] ? "true" : "false");
+    btn.innerHTML = '<span class="toggle-track"><span class="toggle-thumb"></span></span>';
+    btn.addEventListener("click", () => {
+      const enabled = btn.getAttribute("aria-pressed") !== "true";
+      btn.setAttribute("aria-pressed", enabled ? "true" : "false");
+      togglePresetOffset(minutes, enabled);
+      updateReminderUI();
+      if (getPermissionStatus() === "granted") {
+        scheduleNativeReminders(getUpcomingEvents(14));
+      }
+    });
+
+    row.appendChild(lbl);
+    row.appendChild(btn);
+    container.appendChild(row);
+  });
+
+  const chipsEl = document.getElementById("custom-chips");
+  chipsEl.innerHTML = "";
+  settings.custom.forEach((minutes) => {
+    const chip = document.createElement("span");
+    chip.className = "offset-chip";
+    chip.innerHTML = `${formatOffsetLabel(minutes)} before <button type="button" aria-label="Remove">&times;</button>`;
+    chip.querySelector("button").addEventListener("click", () => {
+      removeCustomOffset(minutes);
+      updateReminderUI();
+    });
+    chipsEl.appendChild(chip);
+  });
+}
+
+function initReminderSettings() {
+  updateReminderUI();
+
+  document.getElementById("btn-add-reminder").addEventListener("click", () => {
+    const input = document.getElementById("custom-minutes");
+    const result = addCustomOffset(input.value);
+    if (!result.ok) {
+      showBroadcastFeedback(result.error, "error");
+      return;
+    }
+    input.value = "";
+    updateReminderUI();
+    showBroadcastFeedback("Custom reminder added", "success");
+  });
+}
+
+function showBroadcastFeedback(msg, type) {
+  const el = document.getElementById("broadcast-feedback");
+  el.hidden = false;
+  el.textContent = msg;
+  el.className = `broadcast-feedback is-${type}`;
+  setTimeout(() => { el.hidden = true; }, 4000);
+}
+
+async function updateBroadcastUI() {
+  const statusEl = document.getElementById("broadcast-status");
+  if (statusEl) statusEl.textContent = getBroadcastStatusText();
+
+  const countEl = document.getElementById("subscriber-count");
+  if (isBroadcastConfigured()) {
+    const count = await getSubscriberCount();
+    if (count !== null) {
+      countEl.hidden = false;
+      countEl.textContent = `${count} subscribed device${count === 1 ? "" : "s"}`;
+    }
+  } else {
+    countEl.hidden = true;
+  }
+}
+
+function initBroadcastUI() {
+  document.getElementById("btn-broadcast").addEventListener("click", async () => {
+    const pin = document.getElementById("admin-pin").value;
+    const message = document.getElementById("broadcast-message").value;
+    const btn = document.getElementById("btn-broadcast");
+
+    btn.disabled = true;
+    try {
+      const result = await sendBroadcast(message, pin);
+      if (!result.ok) {
+        showBroadcastFeedback(result.error, "error");
+        return;
+      }
+      if (result.mode === "firebase") {
+        showBroadcastFeedback("Sent to all subscribed devices", "success");
+        document.getElementById("broadcast-message").value = "";
+      } else {
+        showBroadcastFeedback(result.warning || "Sent locally", "warn");
+      }
+    } catch (err) {
+      showBroadcastFeedback("Send failed — check Firebase config", "error");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 function updateNotificationBadge() {
   const badge = document.getElementById("notif-badge");
   const btn = document.getElementById("btn-enable");
@@ -359,13 +479,17 @@ async function onEnableReminders() {
   if (permission === "granted") {
     const events = getUpcomingEvents(14);
     await scheduleNativeReminders(events);
+    await syncReminderSettingsToSW();
+    initBroadcast();
+    updateBroadcastUI();
 
     if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({ type: "CHECK_REMINDERS" });
     }
 
+    const offsets = getEnabledReminderOffsets().map(formatOffsetLabel).join(", ");
     showNotification("Reminders enabled", {
-      body: "You will be notified 2 hours and 30 minutes before each class.",
+      body: `Alerts: ${offsets} before each class.`,
       tag: "reminder-enabled",
     });
   }
@@ -379,7 +503,10 @@ function init() {
   selectedDayIndex = new Date().getDay();
 
   initNavigation();
+  initReminderSettings();
+  initBroadcastUI();
   updateNotificationBadge();
+  updateBroadcastUI();
   tick();
 
   document.getElementById("btn-enable").addEventListener("click", onEnableReminders);
@@ -412,6 +539,9 @@ function init() {
   });
 
   initNotifications();
+  if (getPermissionStatus() === "granted") {
+    initBroadcast();
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);

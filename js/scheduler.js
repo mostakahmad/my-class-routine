@@ -1,4 +1,3 @@
-const REMINDER_OFFSETS = [120, 30];
 const CHECK_WINDOW_MINUTES = 1;
 
 function parseTimeOnDate(date, timeStr) {
@@ -119,26 +118,22 @@ function markNotified(event, offsetMinutes) {
 
 function buildReminderMessage(event, offsetMinutes) {
   const roomPart = event.room ? ` — Room ${event.room}` : "";
-  if (offsetMinutes === 120) {
-    return {
-      title: "Class in 2 hours",
-      body: `${event.title}${roomPart} starts at ${formatTime12(
-        ROUTINE.slots[event.slotId].start
-      )}`,
-    };
-  }
+  const label = formatOffsetLabel(offsetMinutes);
   return {
-    title: "Class in 30 minutes",
-    body: `${event.title}${roomPart} at ${event.timeRange}`,
+    title: `Class in ${label}`,
+    body: `${event.title}${roomPart} · ${event.timeRange}`,
   };
 }
 
 function checkReminders(now = new Date(), onReminder) {
+  const offsets = getEnabledReminderOffsets();
+  if (!offsets.length) return [];
+
   const upcoming = getUpcomingEvents(1, now);
   const fired = [];
 
   upcoming.forEach((event) => {
-    REMINDER_OFFSETS.forEach((offset) => {
+    offsets.forEach((offset) => {
       const reminderTime = new Date(event.start.getTime() - offset * 60 * 1000);
       const windowEnd = new Date(
         reminderTime.getTime() + CHECK_WINDOW_MINUTES * 60 * 1000

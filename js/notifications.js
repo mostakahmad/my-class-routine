@@ -116,7 +116,7 @@ async function scheduleNativeReminders(events) {
     let id = 1;
 
     events.forEach((event) => {
-      [120, 30].forEach((offset) => {
+      getEnabledReminderOffsets().forEach((offset) => {
         const at = new Date(event.start.getTime() - offset * 60 * 1000);
         if (at <= new Date()) return;
 
@@ -140,6 +140,7 @@ async function scheduleNativeReminders(events) {
 
 async function initNotifications() {
   await registerServiceWorker();
+  await syncReminderSettingsToSW();
 
   if (isNativePlatform() && getPermissionStatus() === "granted") {
     const events = getUpcomingEvents(14);
