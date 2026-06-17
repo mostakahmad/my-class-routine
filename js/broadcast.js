@@ -1,3 +1,6 @@
+import { BROADCAST_CONFIG } from "./broadcast-config.js";
+import { getPermissionStatus, showNotification } from "./notifications.js";
+
 const DEVICE_ID_KEY = "cis_device_id";
 const LAST_BROADCAST_KEY = "cis_last_broadcast_id";
 
@@ -13,7 +16,7 @@ function getDeviceId() {
   return id;
 }
 
-function isBroadcastConfigured() {
+export function isBroadcastConfigured() {
   return (
     BROADCAST_CONFIG.enabled &&
     BROADCAST_CONFIG.firebase?.projectId &&
@@ -21,7 +24,7 @@ function isBroadcastConfigured() {
   );
 }
 
-function initBroadcast() {
+export function initBroadcast() {
   if (!isBroadcastConfigured() || typeof firebase === "undefined") return false;
 
   try {
@@ -71,18 +74,20 @@ function startBroadcastListener() {
     const lastId = localStorage.getItem(LAST_BROADCAST_KEY);
 
     if (!data.id || data.id === lastId) return;
-    if (getPermissionStatus() !== "granted") return;
 
-    localStorage.setItem(LAST_BROADCAST_KEY, data.id);
+    getPermissionStatus().then((status) => {
+      if (status !== "granted") return;
 
-    showNotification(data.title || "CIS Announcement", {
-      body: data.message || "",
-      tag: `broadcast-${data.id}`,
+      localStorage.setItem(LAST_BROADCAST_KEY, data.id);
+      showNotification(data.title || "CIS Announcement", {
+        body: data.message || "",
+        tag: `broadcast-${data.id}`,
+      });
     });
   });
 }
 
-async function sendBroadcast(message, pin) {
+export async function sendBroadcast(message, pin) {
   const text = (message || "").trim();
   if (!text) return { ok: false, error: "Enter a message" };
   if (pin !== BROADCAST_CONFIG.adminPin) return { ok: false, error: "Wrong admin PIN" };
@@ -91,8 +96,6 @@ async function sendBroadcast(message, pin) {
     id: `${Date.now()}_${getDeviceId().slice(0, 8)}`,
     title: "CIS Announcement",
     message: text,
-    sentAt: new Date().toISOString(),
-    adminPin: pin,
   };
 
   if (isBroadcastConfigured() && broadcastDb) {
@@ -110,7 +113,6 @@ async function sendBroadcast(message, pin) {
     return { ok: true, mode: "firebase" };
   }
 
-  // Fallback: notify open tabs on this device via service worker
   if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.controller.postMessage({
       type: "LOCAL_BROADCAST",
@@ -119,10 +121,14 @@ async function sendBroadcast(message, pin) {
   }
 
   await showNotification(payload.title, { body: text, tag: payload.id });
-  return { ok: true, mode: "local", warning: "Firebase not configured — only this device notified" };
+  return {
+    ok: true,
+    mode: "local",
+    warning: "Firebase not configured — only this device notified",
+  };
 }
 
-async function getSubscriberCount() {
+export async function getSubscriberCount() {
   if (!broadcastDb) return null;
 
   try {
@@ -136,11 +142,13 @@ async function getSubscriberCount() {
   }
 }
 
-function getBroadcastStatusText() {
+export function getBroadcastStatusText() {
   if (isBroadcastConfigured()) {
-    return getPermissionStatus() === "granted"
-      ? "Connected — listening for announcements"
-      : "Enable reminders to receive broadcasts";
+    return getPermissionStatus().then((status) =>
+      status === "granted"
+        ? "Connected — listening for announcements"
+        : "Enable reminders to receive broadcasts"
+    );
   }
-  return "Local mode — configure Firebase for all devices";
+  return Promise.resolve("Local mode — configure Firebase for all devices");
 }

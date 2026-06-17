@@ -1,6 +1,6 @@
 const REMINDER_SETTINGS_KEY = "cis_reminder_settings";
 
-const PRESET_OFFSETS = [
+export const PRESET_OFFSETS = [
   { minutes: 120, label: "2 hours before" },
   { minutes: 60, label: "1 hour before" },
   { minutes: 30, label: "30 minutes before" },
@@ -12,7 +12,7 @@ const DEFAULT_SETTINGS = {
   custom: [],
 };
 
-function loadReminderSettings() {
+export function loadReminderSettings() {
   try {
     const raw = localStorage.getItem(REMINDER_SETTINGS_KEY);
     if (!raw) return structuredClone(DEFAULT_SETTINGS);
@@ -31,7 +31,7 @@ function saveReminderSettings(settings) {
   syncReminderSettingsToSW();
 }
 
-function getEnabledReminderOffsets() {
+export function getEnabledReminderOffsets() {
   const settings = loadReminderSettings();
   const offsets = [];
 
@@ -47,7 +47,7 @@ function getEnabledReminderOffsets() {
   return offsets.sort((a, b) => b - a);
 }
 
-function formatOffsetLabel(minutes) {
+export function formatOffsetLabel(minutes) {
   if (minutes >= 60 && minutes % 60 === 0) {
     const h = minutes / 60;
     return h === 1 ? "1 hour" : `${h} hours`;
@@ -55,13 +55,13 @@ function formatOffsetLabel(minutes) {
   return `${minutes} min`;
 }
 
-function togglePresetOffset(minutes, enabled) {
+export function togglePresetOffset(minutes, enabled) {
   const settings = loadReminderSettings();
   settings.presets[minutes] = enabled;
   saveReminderSettings(settings);
 }
 
-function addCustomOffset(minutes) {
+export function addCustomOffset(minutes) {
   const n = Math.round(Number(minutes));
   if (!n || n < 1 || n > 1440) return { ok: false, error: "Enter 1–1440 minutes" };
 
@@ -78,13 +78,13 @@ function addCustomOffset(minutes) {
   return { ok: true };
 }
 
-function removeCustomOffset(minutes) {
+export function removeCustomOffset(minutes) {
   const settings = loadReminderSettings();
   settings.custom = settings.custom.filter((m) => m !== minutes);
   saveReminderSettings(settings);
 }
 
-async function syncReminderSettingsToSW() {
+export async function syncReminderSettingsToSW() {
   const offsets = getEnabledReminderOffsets();
 
   try {
@@ -96,7 +96,7 @@ async function syncReminderSettingsToSW() {
       })
     );
   } catch {
-    /* cache unavailable */
+    /* cache unavailable on native */
   }
 
   if (navigator.serviceWorker?.controller) {
@@ -107,7 +107,7 @@ async function syncReminderSettingsToSW() {
   }
 }
 
-function getReminderSummaryText() {
+export function getReminderSummaryText() {
   const offsets = getEnabledReminderOffsets();
   if (!offsets.length) return "No reminders enabled";
   return offsets.map(formatOffsetLabel).join(" · ") + " before";

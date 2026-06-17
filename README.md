@@ -1,114 +1,128 @@
 # CIS Class Routine Reminder
 
-A simple static web app for the **Department of CIS — Summer 2026** class routine. Shows live tracking of your current/next class and sends configurable reminders before each slot.
+Department of CIS — **Summer 2026** class routine with live tracking, configurable reminders, and Firebase broadcast.
 
 ## Features
 
 - Live "Now" and "Next Class" tracking with countdown
-- Today's schedule with active slot highlight
-- Full weekly routine table
-- **Configurable reminders** — 2h, 1h, 30m, 15m (toggle each) + custom minutes
-- **Broadcast messages** to all subscribed devices (via Firebase)
-- Browser/PWA notifications + offline Service Worker
-- Ready for GitHub Pages and Capacitor APK
+- Weekly routine + today's timeline
+- Configurable reminders: 2h, 1h, 30m, 15m + custom minutes
+- Broadcast messages to subscribed devices (Firebase)
+- **Web/PWA** (GitHub Pages) + **Android APK** (Capacitor)
 
-## Quick Start (Local)
+---
 
-Open `index.html` in a browser, or serve locally:
+## Web (GitHub Pages)
+
+Live: [mostakahmad.github.io/my-class-routine](https://mostakahmad.github.io/my-class-routine/)
+
+For local dev with ES modules:
 
 ```bash
-cd my-routine
-python3 -m http.server 8080
+npm install          # run on ext4 (home folder), not FAT USB drives
+npm run build
+python3 -m http.server 8080 --directory www
 ```
 
-Visit `http://localhost:8080` and click **Enable Reminders**.
+> GitHub Pages can deploy the `www/` folder after `npm run build`, or continue using root files with a build step in CI.
 
-> Notifications require HTTPS or `localhost`. Use a local server — do not open the file directly (`file://`).
+---
 
-## Enable Mobile Notifications
+## Android App (Capacitor)
 
-### Android (Chrome)
+### Prerequisites
 
-1. Open the app URL
-2. Tap **Enable Reminders** and allow notifications
-3. Optional: Menu → **Add to Home screen** (install as PWA for better background alerts)
+- Node.js 20+
+- Java JDK 17
+- [Android Studio](https://developer.android.com/studio) (SDK 34+)
 
-### Desktop
+> **Important:** Run `npm install` on an **ext4** disk (e.g. `~/projects`). USB/FAT drives cannot run npm/esbuild due to symlink and executable limits.
 
-1. Open the app
-2. Click **Enable Reminders**
-3. Allow notifications when prompted
-
-## GitHub Pages Deploy
-
-1. Create a GitHub repository and push this folder
-2. Go to **Settings → Pages**
-3. Source: `main` branch, `/ (root)` folder
-4. Your app will be at `https://<username>.github.io/<repo-name>/`
-
-After deploy, open on mobile and install to home screen for best reminder reliability.
-
-## Capacitor APK (Later)
-
-When building a native Android app:
+### Quick build script
 
 ```bash
-npm init -y
-npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/local-notifications
-npx cap init "CIS Routine" com.cis.routine --web-dir .
-npx cap add android
-npx cap sync
+bash scripts/android-build.sh
+```
+
+This copies the project to `/tmp`, installs deps, builds `www/`, syncs Capacitor, and copies `android/` back.
+
+### Manual steps
+
+```bash
+# On ext4 filesystem (home directory recommended)
+npm install
+npm run build
+npx cap sync android
 npx cap open android
 ```
 
-`notifications.js` already includes a Capacitor stub — native local notifications will work once the plugin is installed.
+In Android Studio:
 
-## Reminder Settings
+1. **Build → Build Bundle(s) / APK(s) → Build APK(s)** → debug APK for students
+2. **Build → Generate Signed Bundle / APK** → **AAB** for Google Play Store
 
-Open **Settings** tab:
-
-- Toggle **2 hours / 1 hour / 30 min / 15 min** reminders
-- Add **custom** minutes (e.g. 45) via the input field
-- Enable the main **Class reminders** toggle and allow notifications
-
-## Broadcast to All Devices
-
-Students: enable reminders — your device auto-subscribes.
-
-Teacher: use **Settings → Broadcast message** with admin PIN.
-
-### Firebase setup (required for cross-device broadcast)
-
-1. Create a free project at [Firebase Console](https://console.firebase.google.com)
-2. Enable **Firestore Database**
-3. Copy web app config into [`js/broadcast-config.js`](js/broadcast-config.js)
-4. Set `enabled: true` and change `adminPin`
-5. Firestore rules example:
+Debug APK path:
 
 ```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /cis_broadcasts/{doc} {
-      allow read: if true;
-      allow write: if true;
-    }
-    match /cis_subscribers/{id} {
-      allow read, write: if true;
-    }
-  }
-}
+android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-> Tighten write rules in production. Without Firebase, broadcast only notifies the current device.
+### App ID
 
-## Edit Routine
+`com.cis.myroutine` — do not change after Play Store upload.
 
-Update schedule data in [`js/routine-data.js`](js/routine-data.js). If you change the routine, also update the duplicate data in [`sw.js`](sw.js) (used for background reminders when the app is closed).
+### Native notifications
 
-## Reminder Slots
+- Class reminders use **LocalNotifications** (system alarm, works when app is closed)
+- Open app once after install → Settings → Enable Reminders
+- Broadcast uses Firebase Firestore (works when app is open/background)
 
-All scheduled slots can trigger reminders when enabled: MIS101, DM, Counseling.  
-Friday = Holiday, Saturday = Day Off.
+---
 
-Uses your **device local timezone** automatically.
+## Google Play Store (later)
+
+1. [Google Play Console](https://play.google.com/console) — $25 one-time fee
+2. Build signed **AAB** (not APK)
+3. Upload: app icon 512×512, screenshots, privacy policy URL
+4. Roll out: Internal testing → Production
+
+Keep your **keystore file safe** — losing it prevents app updates.
+
+---
+
+## Firebase broadcast
+
+Config: [`js/broadcast-config.js`](js/broadcast-config.js)
+
+Students: enable reminders → auto-subscribed.  
+Teacher: Settings → Broadcast message + admin PIN.
+
+---
+
+## Edit routine
+
+Update [`js/routine-data.js`](js/routine-data.js) and the duplicate data in [`sw.js`](sw.js) (web background reminders).
+
+After changes:
+
+```bash
+npm run build
+npx cap sync android
+```
+
+---
+
+## Project structure
+
+```
+my-routine/
+├── index.html          # source UI
+├── js/                 # ES module source
+├── www/                # built web assets (Capacitor + deploy)
+├── android/            # Capacitor Android project
+├── capacitor.config.json
+├── package.json
+└── scripts/
+    ├── build-www.js    # esbuild → www/
+    └── android-build.sh
+```

@@ -1,3 +1,47 @@
+import { App } from "@capacitor/app";
+import { ROUTINE } from "./routine-data.js";
+import {
+  PRESET_OFFSETS,
+  loadReminderSettings,
+  getReminderSummaryText,
+  togglePresetOffset,
+  addCustomOffset,
+  removeCustomOffset,
+  formatOffsetLabel,
+  getEnabledReminderOffsets,
+  syncReminderSettingsToSW,
+} from "./reminder-settings.js";
+import {
+  initBroadcast,
+  sendBroadcast,
+  getSubscriberCount,
+  getBroadcastStatusText,
+  isBroadcastConfigured,
+} from "./broadcast.js";
+import {
+  formatCountdown,
+  getTodayEvents,
+  getCurrentEvent,
+  getNextEvent,
+  getCountdownTo,
+  getUpcomingEvents,
+  checkReminders,
+  getCellContent,
+  isSlotActive,
+  isSlotPast,
+} from "./scheduler.js";
+import {
+  isNativePlatform,
+  getPermissionStatus,
+  requestPermission,
+  showNotification,
+  scheduleNativeReminders,
+  initNotifications,
+  getNotificationBadgeClass,
+  getNotificationBadgeText,
+  refreshNativePermission,
+} from "./notifications.js";
+
 const TICK_MS = 30000;
 let selectedDayIndex = new Date().getDay();
 
@@ -48,22 +92,13 @@ function initNavigation() {
 function renderHeroChips(next) {
   const container = document.getElementById("next-chips");
   container.innerHTML = "";
-
   if (!next) return;
 
   const type = getCourseType(next.title);
-  const chips = [];
-
-  chips.push({
-    icon: "bi-bookmark-fill",
-    text: getTypeLabel(type),
-    cls: `chip-type-${type}`,
-  });
-
-  if (next.room) {
-    chips.push({ icon: "bi-geo-alt-fill", text: `Room ${next.room}`, cls: "" });
-  }
-
+  const chips = [
+    { icon: "bi-bookmark-fill", text: getTypeLabel(type), cls: `chip-type-${type}` },
+  ];
+  if (next.room) chips.push({ icon: "bi-geo-alt-fill", text: `Room ${next.room}`, cls: "" });
   chips.push({ icon: "bi-calendar3", text: next.dayLabel, cls: "" });
 
   chips.forEach((c) => {
@@ -103,13 +138,9 @@ function renderLiveTracking(now) {
     topbarText.textContent = special.label;
   } else if (current) {
     currentStatus.textContent = current.title;
-    currentMeta.textContent = [
-      current.timeRange,
-      current.room ? `Room ${current.room}` : null,
-    ]
+    currentMeta.textContent = [current.timeRange, current.room ? `Room ${current.room}` : null]
       .filter(Boolean)
       .join(" · ");
-
     nowCard.classList.add("is-active");
     topbarChip.classList.add("is-class");
     topbarText.textContent = "In class";
@@ -118,7 +149,6 @@ function renderLiveTracking(now) {
     const elapsed = now - current.start;
     const pct = Math.min(100, Math.max(0, (elapsed / total) * 100));
     const remainMin = Math.ceil((current.end - now) / 60000);
-
     progressTrack.hidden = false;
     progressLabel.hidden = false;
     progressFill.style.width = `${pct}%`;
@@ -149,9 +179,7 @@ function renderLiveTracking(now) {
 
 function renderTodayList(now) {
   const list = document.getElementById("today-list");
-  const dateLabel = document.getElementById("today-date");
-  dateLabel.textContent = formatDateLabel(now);
-
+  document.getElementById("today-date").textContent = formatDateLabel(now);
   const { special, events } = getTodayEvents(now);
   list.innerHTML = "";
 
@@ -163,7 +191,7 @@ function renderTodayList(now) {
     return;
   }
 
-  if (events.length === 0) {
+  if (!events.length) {
     const empty = document.createElement("div");
     empty.className = "timeline-empty";
     empty.textContent = "No classes scheduled today";
@@ -175,25 +203,17 @@ function renderTodayList(now) {
     const item = document.createElement("div");
     item.className = "timeline-item";
     item.setAttribute("role", "listitem");
-
     if (isSlotActive(event, now)) item.classList.add("is-active");
     if (isSlotPast(event, now)) item.classList.add("is-past");
-
     const type = getCourseType(event.title);
-
     item.innerHTML = `
-      <div class="timeline-rail">
-        <div class="timeline-dot"></div>
-        <div class="timeline-line"></div>
-      </div>
+      <div class="timeline-rail"><div class="timeline-dot"></div><div class="timeline-line"></div></div>
       <div class="timeline-body">
         <div class="timeline-time">${event.timeRange}</div>
         <p class="timeline-title">${event.title}</p>
         ${event.room ? `<div class="timeline-room"><i class="bi bi-geo-alt"></i> Room ${event.room}</div>` : ""}
         <span class="type-badge type-${type}">${getTypeLabel(type)}</span>
-      </div>
-    `;
-
+      </div>`;
     list.appendChild(item);
   });
 }
@@ -208,24 +228,16 @@ function renderDayPills(now) {
     btn.type = "button";
     btn.className = "day-pill";
     btn.setAttribute("role", "tab");
-    btn.dataset.day = i;
-
     if (i === todayIndex) btn.classList.add("is-today");
     if (i === selectedDayIndex) btn.classList.add("active");
-
     const special = ROUTINE.specialDays[i];
     const slotCount = ROUTINE.week[i]?.length ?? 0;
-    btn.innerHTML = `
-      ${formatShortDay(i)}
-      <span class="pill-sub">${special ? special.label : slotCount + " slots"}</span>
-    `;
-
+    btn.innerHTML = `${formatShortDay(i)}<span class="pill-sub">${special ? special.label : slotCount + " slots"}</span>`;
     btn.addEventListener("click", () => {
       selectedDayIndex = i;
       renderDayPills(now);
       renderDayDetail(i);
     });
-
     container.appendChild(btn);
   }
 }
@@ -234,7 +246,6 @@ function renderDayDetail(dayIndex) {
   const nameEl = document.getElementById("day-detail-name");
   const slotsEl = document.getElementById("day-slots");
   const special = ROUTINE.specialDays[dayIndex];
-
   nameEl.textContent = ROUTINE.dayLabels[dayIndex];
   slotsEl.innerHTML = "";
 
@@ -244,7 +255,7 @@ function renderDayDetail(dayIndex) {
   }
 
   const entries = ROUTINE.week[dayIndex] || [];
-  if (entries.length === 0) {
+  if (!entries.length) {
     slotsEl.innerHTML = `<div class="timeline-empty">No classes</div>`;
     return;
   }
@@ -260,8 +271,7 @@ function renderDayDetail(dayIndex) {
         <p class="day-slot-title">${entry.title}</p>
         ${entry.room ? `<div class="timeline-room"><i class="bi bi-geo-alt"></i> Room ${entry.room}</div>` : ""}
         <span class="type-badge type-${type}">${getTypeLabel(type)}</span>
-      </div>
-    `;
+      </div>`;
     slotsEl.appendChild(row);
   });
 }
@@ -283,11 +293,9 @@ function renderRoutineTable(now) {
   for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
     const tr = document.createElement("tr");
     if (dayIndex === todayIndex) tr.classList.add("is-today-row");
-
     const th = document.createElement("th");
     th.textContent = formatShortDay(dayIndex).toUpperCase();
     tr.appendChild(th);
-
     const special = ROUTINE.specialDays[dayIndex];
 
     if (special) {
@@ -313,7 +321,6 @@ function renderRoutineTable(now) {
         tr.appendChild(td);
       });
     }
-
     tbody.appendChild(tr);
   }
 }
@@ -332,26 +339,23 @@ function updateReminderUI() {
   PRESET_OFFSETS.forEach(({ minutes, label }) => {
     const row = document.createElement("div");
     row.className = "reminder-toggle-row";
-
     const lbl = document.createElement("span");
     lbl.className = "reminder-toggle-label";
     lbl.textContent = label;
-
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "btn-toggle";
     btn.setAttribute("aria-pressed", settings.presets[minutes] ? "true" : "false");
     btn.innerHTML = '<span class="toggle-track"><span class="toggle-thumb"></span></span>';
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const enabled = btn.getAttribute("aria-pressed") !== "true";
       btn.setAttribute("aria-pressed", enabled ? "true" : "false");
       togglePresetOffset(minutes, enabled);
       updateReminderUI();
-      if (getPermissionStatus() === "granted") {
-        scheduleNativeReminders(getUpcomingEvents(14));
+      if ((await getPermissionStatus()) === "granted") {
+        await scheduleNativeReminders(getUpcomingEvents(14));
       }
     });
-
     row.appendChild(lbl);
     row.appendChild(btn);
     container.appendChild(row);
@@ -373,7 +377,6 @@ function updateReminderUI() {
 
 function initReminderSettings() {
   updateReminderUI();
-
   document.getElementById("btn-add-reminder").addEventListener("click", () => {
     const input = document.getElementById("custom-minutes");
     const result = addCustomOffset(input.value);
@@ -397,7 +400,7 @@ function showBroadcastFeedback(msg, type) {
 
 async function updateBroadcastUI() {
   const statusEl = document.getElementById("broadcast-status");
-  if (statusEl) statusEl.textContent = getBroadcastStatusText();
+  if (statusEl) statusEl.textContent = await getBroadcastStatusText();
 
   const countEl = document.getElementById("subscriber-count");
   if (isBroadcastConfigured()) {
@@ -416,7 +419,6 @@ function initBroadcastUI() {
     const pin = document.getElementById("admin-pin").value;
     const message = document.getElementById("broadcast-message").value;
     const btn = document.getElementById("btn-broadcast");
-
     btn.disabled = true;
     try {
       const result = await sendBroadcast(message, pin);
@@ -430,7 +432,7 @@ function initBroadcastUI() {
       } else {
         showBroadcastFeedback(result.warning || "Sent locally", "warn");
       }
-    } catch (err) {
+    } catch {
       showBroadcastFeedback("Send failed — check Firebase config", "error");
     } finally {
       btn.disabled = false;
@@ -439,72 +441,70 @@ function initBroadcastUI() {
 }
 
 function getBlockedStepsHtml() {
-  const ua = navigator.userAgent.toLowerCase();
-  const isIOS = /iphone|ipad|ipod/.test(ua);
-  const isAndroid = /android/.test(ua);
-
-  if (isIOS) {
+  if (isNativePlatform()) {
     return [
-      "Settings → Notifications → Safari (বা Chrome)",
-      "অ্যাপের জন্য Notifications Allow করুন",
-      "অথবা Safari: address bar → aA → Website Settings → Allow",
+      "Phone Settings → Apps → CIS Routine → Notifications → Allow",
+      "Also check: Alarms & reminders (if shown on your device)",
+      "Return here and tap Check again",
     ];
   }
-  if (isAndroid) {
+
+  const ua = navigator.userAgent.toLowerCase();
+  if (/iphone|ipad|ipod/.test(ua)) {
     return [
-      "Chrome: ঠিকানার বামে 🔒 বা ⓘ → Permissions → Notifications → Allow",
-      "অথবা Chrome → Settings → Site settings → Notifications → mostakahmad.github.io → Allow",
-      "PWA হলে: Phone Settings → Apps → CIS Routine → Notifications → On",
+      "Settings → Notifications → Safari (or Chrome)",
+      "Allow notifications for this site",
+      "Safari: address bar → aA → Website Settings → Allow",
+    ];
+  }
+  if (/android/.test(ua)) {
+    return [
+      "Chrome: tap lock icon → Permissions → Notifications → Allow",
+      "Chrome → Site settings → Notifications → mostakahmad.github.io → Allow",
+      "PWA: Phone Settings → Apps → CIS Routine → Notifications → On",
     ];
   }
   return [
-    "Address bar-এ 🔒 ক্লিক করুন → Site settings → Notifications → Allow",
+    "Click lock icon in address bar → Site settings → Notifications → Allow",
     "Chrome: Settings → Privacy → Site settings → Notifications",
-    "Firefox: Page info → Permissions → Notifications → Allow",
   ];
 }
 
-function renderBlockedHelp() {
+async function renderBlockedHelp() {
   const help = document.getElementById("notif-blocked-help");
   const steps = document.getElementById("blocked-steps");
-  const status = getPermissionStatus();
-
   if (!help || !steps) return;
 
+  const status = await getPermissionStatus();
   if (status === "denied") {
     help.hidden = false;
-    steps.innerHTML = getBlockedStepsHtml()
-      .map((s) => `<li>${s}</li>`)
-      .join("");
+    steps.innerHTML = getBlockedStepsHtml().map((s) => `<li>${s}</li>`).join("");
   } else {
     help.hidden = true;
   }
 }
 
 async function recheckPermission() {
-  updateNotificationBadge();
-  renderBlockedHelp();
+  await refreshNativePermission();
+  await updateNotificationBadge();
 
-  if (getPermissionStatus() === "granted") {
-    await syncReminderSettingsToSW();
-    initBroadcast();
-    updateBroadcastUI();
+  const status = await getPermissionStatus();
+  if (status === "granted") {
+    await onRemindersGranted();
     showBroadcastFeedback("Notifications enabled!", "success");
     return;
   }
-
-  if (getPermissionStatus() === "default") {
+  if (status === "default") {
     await onEnableReminders();
     return;
   }
-
   showBroadcastFeedback("Still blocked — follow steps above", "warn");
 }
 
-function updateNotificationBadge() {
+async function updateNotificationBadge() {
   const badge = document.getElementById("notif-badge");
   const btn = document.getElementById("btn-enable");
-  const status = getPermissionStatus();
+  const status = await getPermissionStatus();
 
   badge.className = `status-pill ${getNotificationBadgeClass(status)}`;
   badge.textContent = getNotificationBadgeText(status);
@@ -515,13 +515,28 @@ function updateNotificationBadge() {
   } else if (status === "denied") {
     btn.setAttribute("aria-pressed", "false");
     btn.disabled = true;
-    badge.textContent = "Blocked — enable in settings";
+    badge.textContent = isNativePlatform()
+      ? "Blocked — enable in phone settings"
+      : "Blocked — enable in settings";
   } else {
     btn.setAttribute("aria-pressed", "false");
     btn.disabled = false;
   }
 
-  renderBlockedHelp();
+  await renderBlockedHelp();
+}
+
+async function onRemindersGranted() {
+  const events = getUpcomingEvents(14);
+  await scheduleNativeReminders(events);
+  if (!isNativePlatform()) {
+    await syncReminderSettingsToSW();
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "CHECK_REMINDERS" });
+    }
+  }
+  initBroadcast();
+  await updateBroadcastUI();
 }
 
 function tick() {
@@ -539,19 +554,10 @@ function tick() {
 
 async function onEnableReminders() {
   const permission = await requestPermission();
-  updateNotificationBadge();
+  await updateNotificationBadge();
 
   if (permission === "granted") {
-    const events = getUpcomingEvents(14);
-    await scheduleNativeReminders(events);
-    await syncReminderSettingsToSW();
-    initBroadcast();
-    updateBroadcastUI();
-
-    if (navigator.serviceWorker?.controller) {
-      navigator.serviceWorker.controller.postMessage({ type: "CHECK_REMINDERS" });
-    }
-
+    await onRemindersGranted();
     const offsets = getEnabledReminderOffsets().map(formatOffsetLabel).join(", ");
     showNotification("Reminders enabled", {
       body: `Alerts: ${offsets} before each class.`,
@@ -560,32 +566,50 @@ async function onEnableReminders() {
   }
 }
 
-function init() {
+async function onAppResume() {
+  await refreshNativePermission();
+  await updateNotificationBadge();
+  const status = await getPermissionStatus();
+  if (status === "granted") {
+    await scheduleNativeReminders(getUpcomingEvents(14));
+    initBroadcast();
+    await updateBroadcastUI();
+  }
+  tick();
+}
+
+function initCapacitorLifecycle() {
+  if (!isNativePlatform()) return;
+
+  App.addListener("appStateChange", ({ isActive }) => {
+    if (isActive) onAppResume();
+  });
+}
+
+async function init() {
   document.getElementById("dept-title").textContent = ROUTINE.department;
   document.getElementById("term-label").textContent = ROUTINE.term;
   document.getElementById("footer-note").textContent = ROUTINE.footerNote;
 
   selectedDayIndex = new Date().getDay();
-
   initNavigation();
   initReminderSettings();
   initBroadcastUI();
-  updateNotificationBadge();
-  updateBroadcastUI();
+  initCapacitorLifecycle();
+
+  await updateNotificationBadge();
+  await updateBroadcastUI();
   tick();
 
   document.getElementById("btn-enable").addEventListener("click", onEnableReminders);
   document.getElementById("btn-recheck-permission").addEventListener("click", recheckPermission);
 
   setInterval(tick, TICK_MS);
-
   setInterval(() => {
     const now = new Date();
     const next = getNextEvent(now);
     const countdown = document.getElementById("countdown");
-    if (next) {
-      countdown.textContent = formatCountdown(getCountdownTo(next, now));
-    }
+    if (next) countdown.textContent = formatCountdown(getCountdownTo(next, now));
 
     const { event: current } = getCurrentEvent(now);
     if (current) {
@@ -601,20 +625,15 @@ function init() {
   }, 1000);
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
-      updateNotificationBadge();
-      if (getPermissionStatus() === "granted") {
-        initBroadcast();
-        updateBroadcastUI();
-      }
-      tick();
-    }
+    if (!document.hidden) onAppResume();
   });
 
-  initNotifications();
-  if (getPermissionStatus() === "granted") {
+  await initNotifications();
+  if ((await getPermissionStatus()) === "granted") {
     initBroadcast();
   }
 }
 
-document.addEventListener("DOMContentLoaded", init);
+document.addEventListener("DOMContentLoaded", () => {
+  init().catch(console.error);
+});

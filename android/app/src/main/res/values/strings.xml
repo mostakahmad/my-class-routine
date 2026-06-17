@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CIS Routine</string>
+    <string name="title_activity_main">CIS Routine</string>
+    <string name="package_name">com.cis.myroutine</string>
+    <string name="custom_url_scheme">com.cis.myroutine</string>
+</resources>

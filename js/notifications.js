@@ -1,16 +1,32 @@
+import {
+  isNativePlatform,
+  checkNativePermission,
+  requestNativePermission,
+  showNativeNotification,
+  cancelAllNativeNotifications,
+  scheduleNativeNotifications,
+} from "./native-notifications.js";
+import { getEnabledReminderOffsets, syncReminderSettingsToSW } from "./reminder-settings.js";
+import { getUpcomingEvents, buildReminderMessage } from "./scheduler.js";
+
+export { isNativePlatform };
+
 let swRegistration = null;
+let nativePermission = "default";
 
-function isNativePlatform() {
-  return !!(window.Capacitor && window.Capacitor.isNativePlatform());
-}
-
-function getPermissionStatus() {
+export async function getPermissionStatus() {
+  if (isNativePlatform()) {
+    if (nativePermission === "default") {
+      nativePermission = await checkNativePermission();
+    }
+    return nativePermission;
+  }
   if (!("Notification" in window)) return "unsupported";
   return Notification.permission;
 }
 
 async function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return null;
+  if (isNativePlatform() || !("serviceWorker" in navigator)) return null;
 
   try {
     swRegistration = await navigator.serviceWorker.register("./sw.js");
@@ -22,9 +38,10 @@ async function registerServiceWorker() {
   }
 }
 
-async function requestPermission() {
+export async function requestPermission() {
   if (isNativePlatform()) {
-    return requestNativePermission();
+    nativePermission = await requestNativePermission();
+    return nativePermission;
   }
 
   if (!("Notification" in window)) {
@@ -38,21 +55,9 @@ async function requestPermission() {
   return permission;
 }
 
-async function requestNativePermission() {
-  try {
-    const { LocalNotifications } = await import(
-      "@capacitor/local-notifications"
-    );
-    const result = await LocalNotifications.requestPermissions();
-    return result.display === "granted" ? "granted" : "denied";
-  } catch {
-    return "unsupported";
-  }
-}
-
-async function showNotification(title, options = {}) {
+export async function showNotification(title, options = {}) {
   if (isNativePlatform()) {
-    return showNativeNotification(title, options);
+    return showNativeNotification(title, options.body, options.tag);
   }
 
   const payload = {
@@ -69,7 +74,7 @@ async function showNotification(title, options = {}) {
     return true;
   }
 
-  if (getPermissionStatus() === "granted") {
+  if (Notification.permission === "granted") {
     new Notification(title, {
       body: payload.body,
       icon: payload.icon,
@@ -81,36 +86,11 @@ async function showNotification(title, options = {}) {
   return false;
 }
 
-async function showNativeNotification(title, options = {}) {
-  try {
-    const { LocalNotifications } = await import(
-      "@capacitor/local-notifications"
-    );
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: Date.now() % 100000,
-          title,
-          body: options.body || "",
-          schedule: { at: new Date(Date.now() + 500) },
-        },
-      ],
-    });
-    return true;
-  } catch (err) {
-    console.warn("Native notification failed:", err);
-    return false;
-  }
-}
-
-async function scheduleNativeReminders(events) {
+export async function scheduleNativeReminders(events) {
   if (!isNativePlatform()) return;
 
   try {
-    const { LocalNotifications } = await import(
-      "@capacitor/local-notifications"
-    );
-    await LocalNotifications.cancel({ notifications: [] });
+    await cancelAllNativeNotifications();
 
     const notifications = [];
     let id = 1;
@@ -130,25 +110,25 @@ async function scheduleNativeReminders(events) {
       });
     });
 
-    if (notifications.length > 0) {
-      await LocalNotifications.schedule({ notifications });
-    }
+    await scheduleNativeNotifications(notifications);
   } catch (err) {
     console.warn("Native schedule failed:", err);
   }
 }
 
-async function initNotifications() {
-  await registerServiceWorker();
-  await syncReminderSettingsToSW();
+export async function initNotifications() {
+  if (!isNativePlatform()) {
+    await registerServiceWorker();
+    await syncReminderSettingsToSW();
+  }
 
-  if (isNativePlatform() && getPermissionStatus() === "granted") {
+  if (isNativePlatform() && (await getPermissionStatus()) === "granted") {
     const events = getUpcomingEvents(14);
     await scheduleNativeReminders(events);
   }
 }
 
-function getNotificationBadgeClass(status) {
+export function getNotificationBadgeClass(status) {
   switch (status) {
     case "granted":
       return "badge-enabled";
@@ -159,15 +139,24 @@ function getNotificationBadgeClass(status) {
   }
 }
 
-function getNotificationBadgeText(status) {
+export function getNotificationBadgeText(status) {
   switch (status) {
     case "granted":
       return "Reminders enabled";
     case "denied":
-      return "Blocked — enable in browser settings";
+      return isNativePlatform()
+        ? "Blocked — enable in phone settings"
+        : "Blocked — enable in browser settings";
     case "unsupported":
       return "Not supported on this device";
     default:
       return "Not enabled";
   }
+}
+
+export async function refreshNativePermission() {
+  if (isNativePlatform()) {
+    nativePermission = await checkNativePermission();
+  }
+  return getPermissionStatus();
 }

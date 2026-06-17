@@ -1,3 +1,6 @@
+import { ROUTINE } from "./routine-data.js";
+import { formatOffsetLabel, getEnabledReminderOffsets } from "./reminder-settings.js";
+
 const CHECK_WINDOW_MINUTES = 1;
 
 function parseTimeOnDate(date, timeStr) {
@@ -14,7 +17,7 @@ function formatTime12(timeStr) {
   return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-function formatCountdown(ms) {
+export function formatCountdown(ms) {
   if (ms <= 0) return "00:00:00";
   const totalSec = Math.floor(ms / 1000);
   const h = Math.floor(totalSec / 3600);
@@ -61,13 +64,13 @@ function getEventsForDay(dayIndex, refDate) {
   return { special: null, events };
 }
 
-function getTodayEvents(now = new Date()) {
+export function getTodayEvents(now = new Date()) {
   const dayIndex = now.getDay();
   const { special, events } = getEventsForDay(dayIndex, now);
   return { special, events, dayIndex };
 }
 
-function getCurrentEvent(now = new Date()) {
+export function getCurrentEvent(now = new Date()) {
   const { special, events } = getTodayEvents(now);
   if (special) return { special, event: null };
 
@@ -75,7 +78,7 @@ function getCurrentEvent(now = new Date()) {
   return { special: null, event: current || null };
 }
 
-function getUpcomingEvents(daysAhead = 7, now = new Date()) {
+export function getUpcomingEvents(daysAhead = 7, now = new Date()) {
   const result = [];
   for (let i = 0; i <= daysAhead; i++) {
     const date = new Date(now);
@@ -93,12 +96,12 @@ function getUpcomingEvents(daysAhead = 7, now = new Date()) {
   return result;
 }
 
-function getNextEvent(now = new Date()) {
+export function getNextEvent(now = new Date()) {
   const upcoming = getUpcomingEvents(7, now);
   return upcoming[0] || null;
 }
 
-function getCountdownTo(event, now = new Date()) {
+export function getCountdownTo(event, now = new Date()) {
   if (!event) return null;
   return event.start - now;
 }
@@ -116,7 +119,7 @@ function markNotified(event, offsetMinutes) {
   localStorage.setItem(notifiedKey(event, offsetMinutes), "1");
 }
 
-function buildReminderMessage(event, offsetMinutes) {
+export function buildReminderMessage(event, offsetMinutes) {
   const roomPart = event.room ? ` — Room ${event.room}` : "";
   const label = formatOffsetLabel(offsetMinutes);
   return {
@@ -125,7 +128,7 @@ function buildReminderMessage(event, offsetMinutes) {
   };
 }
 
-function checkReminders(now = new Date(), onReminder) {
+export function checkReminders(now = new Date(), onReminder) {
   const offsets = getEnabledReminderOffsets();
   if (!offsets.length) return [];
 
@@ -151,7 +154,7 @@ function checkReminders(now = new Date(), onReminder) {
   return fired;
 }
 
-function getCellContent(dayIndex, slotId) {
+export function getCellContent(dayIndex, slotId) {
   const special = ROUTINE.specialDays[dayIndex];
   if (special) return null;
 
@@ -165,10 +168,10 @@ function getCellContent(dayIndex, slotId) {
   };
 }
 
-function isSlotActive(event, now = new Date()) {
+export function isSlotActive(event, now = new Date()) {
   return now >= event.start && now < event.end;
 }
 
-function isSlotPast(event, now = new Date()) {
+export function isSlotPast(event, now = new Date()) {
   return now >= event.end;
 }

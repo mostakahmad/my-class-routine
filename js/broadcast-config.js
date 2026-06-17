@@ -1,7 +1,7 @@
 // Firebase setup for cross-device broadcast.
 // Uses firebase compat scripts from index.html (not ES modules).
 
-const BROADCAST_CONFIG = {
+export const BROADCAST_CONFIG = {
   enabled: true,
   adminPin: "cis2026",
   broadcastDoc: "latest",

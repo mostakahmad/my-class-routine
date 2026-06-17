@@ -1,4 +1,4 @@
-const ROUTINE = {
+export const ROUTINE = {
   term: "Summer 2026",
   department: "Department of CIS",
   footerNote:
