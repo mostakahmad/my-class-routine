@@ -438,6 +438,69 @@ function initBroadcastUI() {
   });
 }
 
+function getBlockedStepsHtml() {
+  const ua = navigator.userAgent.toLowerCase();
+  const isIOS = /iphone|ipad|ipod/.test(ua);
+  const isAndroid = /android/.test(ua);
+
+  if (isIOS) {
+    return [
+      "Settings → Notifications → Safari (বা Chrome)",
+      "অ্যাপের জন্য Notifications Allow করুন",
+      "অথবা Safari: address bar → aA → Website Settings → Allow",
+    ];
+  }
+  if (isAndroid) {
+    return [
+      "Chrome: ঠিকানার বামে 🔒 বা ⓘ → Permissions → Notifications → Allow",
+      "অথবা Chrome → Settings → Site settings → Notifications → mostakahmad.github.io → Allow",
+      "PWA হলে: Phone Settings → Apps → CIS Routine → Notifications → On",
+    ];
+  }
+  return [
+    "Address bar-এ 🔒 ক্লিক করুন → Site settings → Notifications → Allow",
+    "Chrome: Settings → Privacy → Site settings → Notifications",
+    "Firefox: Page info → Permissions → Notifications → Allow",
+  ];
+}
+
+function renderBlockedHelp() {
+  const help = document.getElementById("notif-blocked-help");
+  const steps = document.getElementById("blocked-steps");
+  const status = getPermissionStatus();
+
+  if (!help || !steps) return;
+
+  if (status === "denied") {
+    help.hidden = false;
+    steps.innerHTML = getBlockedStepsHtml()
+      .map((s) => `<li>${s}</li>`)
+      .join("");
+  } else {
+    help.hidden = true;
+  }
+}
+
+async function recheckPermission() {
+  updateNotificationBadge();
+  renderBlockedHelp();
+
+  if (getPermissionStatus() === "granted") {
+    await syncReminderSettingsToSW();
+    initBroadcast();
+    updateBroadcastUI();
+    showBroadcastFeedback("Notifications enabled!", "success");
+    return;
+  }
+
+  if (getPermissionStatus() === "default") {
+    await onEnableReminders();
+    return;
+  }
+
+  showBroadcastFeedback("Still blocked — follow steps above", "warn");
+}
+
 function updateNotificationBadge() {
   const badge = document.getElementById("notif-badge");
   const btn = document.getElementById("btn-enable");
@@ -457,6 +520,8 @@ function updateNotificationBadge() {
     btn.setAttribute("aria-pressed", "false");
     btn.disabled = false;
   }
+
+  renderBlockedHelp();
 }
 
 function tick() {
@@ -510,6 +575,7 @@ function init() {
   tick();
 
   document.getElementById("btn-enable").addEventListener("click", onEnableReminders);
+  document.getElementById("btn-recheck-permission").addEventListener("click", recheckPermission);
 
   setInterval(tick, TICK_MS);
 
@@ -535,7 +601,14 @@ function init() {
   }, 1000);
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) tick();
+    if (!document.hidden) {
+      updateNotificationBadge();
+      if (getPermissionStatus() === "granted") {
+        initBroadcast();
+        updateBroadcastUI();
+      }
+      tick();
+    }
   });
 
   initNotifications();

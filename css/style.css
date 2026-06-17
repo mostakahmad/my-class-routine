@@ -975,6 +975,45 @@ body {
 .broadcast-feedback.is-error { color: #f87171; }
 .broadcast-feedback.is-warn { color: var(--accent-orange); }
 
+.blocked-help-card {
+  border-color: rgba(248, 113, 113, 0.35);
+  padding: 1rem 1.1rem;
+}
+
+.blocked-help-card .settings-block-title {
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.blocked-steps {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.1rem;
+}
+
+.blocked-steps li { margin-bottom: 0.35rem; }
+
+.btn-recheck {
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-sm);
+  color: var(--gold-light);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--font);
+  font-size: 0.85rem;
+  font-weight: 600;
+  gap: 0.4rem;
+  justify-content: center;
+  padding: 0.7rem 1rem;
+  width: 100%;
+}
+
 .info-card { padding: 0.5rem 0; }
 
 .info-row {
