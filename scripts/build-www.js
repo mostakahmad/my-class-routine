@@ -19,7 +19,6 @@ mkdirSync(resolve(www, "assets"), { recursive: true });
 cpSync(resolve(root, "css"), resolve(www, "css"), { recursive: true });
 cpSync(resolve(root, "icons"), resolve(www, "icons"), { recursive: true });
 cpSync(resolve(root, "manifest.json"), resolve(www, "manifest.json"));
-cpSync(resolve(root, "sw.js"), resolve(www, "sw.js"));
 
 let html = readFileSync(resolve(root, "index.html"), "utf8");
 html = html.replace(
@@ -35,6 +34,14 @@ await build({
   outfile: resolve(www, "assets/app.js"),
   target: ["es2020"],
   sourcemap: true,
+});
+
+await build({
+  entryPoints: [resolve(root, "sw.js")],
+  bundle: true,
+  format: "iife",
+  outfile: resolve(www, "sw.js"),
+  target: ["es2020"],
 });
 
 console.log("Built www/ successfully");

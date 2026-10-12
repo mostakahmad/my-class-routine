@@ -1,7 +1,56 @@
-import { ROUTINE } from "./routine-data.js";
+import { ROUTINE, TYPE_META } from "./routine-data.js";
 import { formatOffsetLabel, getEnabledReminderOffsets } from "./reminder-settings.js";
 
 const CHECK_WINDOW_MINUTES = 1;
+const EVENING_PROFILE_KEY = "evening_profile";
+
+let runtimeEveningProfile = "nocook";
+
+export function getEveningProfile() {
+  if (typeof localStorage !== "undefined") {
+    try {
+      const saved = localStorage.getItem(EVENING_PROFILE_KEY);
+      if (saved === "cooking" || saved === "nocook") return saved;
+    } catch {
+      /* private mode or service worker */
+    }
+  }
+  return runtimeEveningProfile === "cooking" ? "cooking" : "nocook";
+}
+
+export function setRuntimeEveningProfile(profile) {
+  runtimeEveningProfile = profile === "cooking" ? "cooking" : "nocook";
+}
+
+export function setEveningProfile(profile) {
+  const next = profile === "cooking" ? "cooking" : "nocook";
+  runtimeEveningProfile = next;
+  try {
+    localStorage.setItem(EVENING_PROFILE_KEY, next);
+  } catch {
+    /* ignore */
+  }
+  return next;
+}
+
+export async function syncEveningProfileToSW(profile = getEveningProfile()) {
+  try {
+    const cache = await caches.open("cis-app-settings");
+    await cache.put(
+      "evening-profile",
+      new Response(profile, { headers: { "Content-Type": "text/plain" } })
+    );
+  } catch {
+    /* cache unavailable on native */
+  }
+
+  if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: "SYNC_EVENING_PROFILE",
+      profile,
+    });
+  }
+}
 
 function parseTimeOnDate(date, timeStr) {
   const [h, m] = timeStr.split(":").map(Number);
@@ -26,55 +75,88 @@ export function formatCountdown(ms) {
   return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
-function eventKey(dayIndex, slotId, title) {
-  return `${dayIndex}_${slotId}_${title.replace(/\s+/g, "_")}`;
+function eventKey(dayIndex, start, title) {
+  return `${dayIndex}_${start}_${title.replace(/\s+/g, "_")}`;
+}
+
+export function formatPlace(entry) {
+  if (entry.room) return `Room ${entry.room}`;
+  if (entry.place === "home") return "At home";
+  if (entry.place === "no-desk") return "No desk";
+  return null;
 }
 
 function buildEvent(dayIndex, entry, date) {
-  const slot = ROUTINE.slots[entry.slot];
-  const start = parseTimeOnDate(date, slot.start);
-  const end = parseTimeOnDate(date, slot.end);
+  const start = parseTimeOnDate(date, entry.start);
+  const end = parseTimeOnDate(date, entry.end);
+  if (end <= start) end.setDate(end.getDate() + 1);
+
   return {
-    id: eventKey(dayIndex, entry.slot, entry.title),
+    id: eventKey(dayIndex, entry.start, entry.title),
     dayIndex,
     dayLabel: ROUTINE.dayLabels[dayIndex],
-    slotId: entry.slot,
     title: entry.title,
+    type: entry.type,
     room: entry.room || null,
+    place: entry.place || (entry.room ? "room" : null),
+    placeLabel: formatPlace(entry),
+    segment: entry.segment || "day",
+    startClock: entry.start,
+    endClock: entry.end,
+    grid: entry.grid || null,
     start,
     end,
-    startLabel: slot.label,
-    timeRange: `${formatTime12(slot.start)} – ${formatTime12(slot.end)}`,
+    timeRange: `${formatTime12(entry.start)} – ${formatTime12(entry.end)}`,
   };
 }
 
-function getEventsForDay(dayIndex, refDate) {
+export function getEventsForDay(dayIndex, refDate) {
   const special = ROUTINE.specialDays[dayIndex];
   if (special) {
     return { special, events: [] };
   }
 
-  const entries = ROUTINE.week[dayIndex] || [];
   const date = new Date(refDate);
   const dayDiff = dayIndex - date.getDay();
   date.setDate(date.getDate() + dayDiff);
   date.setHours(0, 0, 0, 0);
 
-  const events = entries.map((entry) => buildEvent(dayIndex, entry, date));
+  const profile = getEveningProfile();
+  const entries = [
+    ...(ROUTINE.week[dayIndex] || []),
+    ...(ROUTINE.evening[profile] || []),
+  ];
+  const events = entries
+    .map((entry) => buildEvent(dayIndex, entry, date))
+    .sort((a, b) => a.start - b.start);
+
   return { special: null, events };
 }
 
 export function getTodayEvents(now = new Date()) {
   const dayIndex = now.getDay();
   const { special, events } = getEventsForDay(dayIndex, now);
-  return { special, events, dayIndex };
+  if (special) return { special, events, dayIndex };
+
+  const prevDate = new Date(now);
+  prevDate.setDate(prevDate.getDate() - 1);
+  const previous = getEventsForDay(prevDate.getDay(), prevDate);
+  const carry = previous.events
+    .filter((event) => event.start <= now && event.end > now)
+    .map((event) => ({ ...event, segment: "carry" }));
+
+  return {
+    special: null,
+    events: [...carry, ...events].sort((a, b) => a.start - b.start),
+    dayIndex,
+  };
 }
 
 export function getCurrentEvent(now = new Date()) {
   const { special, events } = getTodayEvents(now);
   if (special) return { special, event: null };
 
-  const current = events.find((e) => now >= e.start && now < e.end);
+  const current = events.find((event) => now >= event.start && now < event.end);
   return { special: null, event: current || null };
 }
 
@@ -87,8 +169,8 @@ export function getUpcomingEvents(daysAhead = 7, now = new Date()) {
     const dayIndex = date.getDay();
     const { special, events } = getEventsForDay(dayIndex, date);
     if (!special) {
-      events.forEach((e) => {
-        if (e.start > now) result.push(e);
+      events.forEach((event) => {
+        if (event.start > now) result.push(event);
       });
     }
   }
@@ -120,11 +202,12 @@ function markNotified(event, offsetMinutes) {
 }
 
 export function buildReminderMessage(event, offsetMinutes) {
-  const roomPart = event.room ? ` — Room ${event.room}` : "";
+  const reminder = TYPE_META[event.type]?.reminder || "Up next";
+  const placePart = event.placeLabel ? ` — ${event.placeLabel}` : "";
   const label = formatOffsetLabel(offsetMinutes);
   return {
-    title: `Class in ${label}`,
-    body: `${event.title}${roomPart} · ${event.timeRange}`,
+    title: `${reminder} in ${label}`,
+    body: `${event.title}${placePart} · ${event.timeRange}`,
   };
 }
 
@@ -158,13 +241,24 @@ export function getCellContent(dayIndex, slotId) {
   const special = ROUTINE.specialDays[dayIndex];
   if (special) return null;
 
+  const order = ROUTINE.slotOrder;
+  const target = order.indexOf(slotId);
+  if (target < 0) return null;
+
   const entries = ROUTINE.week[dayIndex] || [];
-  const entry = entries.find((e) => e.slot === slotId);
+  const entry = entries.find((item) => {
+    if (!item.grid) return false;
+    const start = order.indexOf(item.grid.slot);
+    const span = item.grid.span || 1;
+    return target >= start && target < start + span;
+  });
   if (!entry) return null;
 
   return {
     title: entry.title,
     room: entry.room || null,
+    type: entry.type,
+    place: entry.place || null,
   };
 }
 

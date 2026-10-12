@@ -1,5 +1,5 @@
 import { App } from "@capacitor/app";
-import { ROUTINE } from "./routine-data.js";
+import { ROUTINE, TYPE_META } from "./routine-data.js";
 import {
   PRESET_OFFSETS,
   loadReminderSettings,
@@ -25,8 +25,11 @@ import {
   getNextEvent,
   getCountdownTo,
   getUpcomingEvents,
+  getEventsForDay,
+  getEveningProfile,
+  setEveningProfile,
+  syncEveningProfileToSW,
   checkReminders,
-  getCellContent,
   isSlotActive,
   isSlotPast,
 } from "./scheduler.js";
@@ -45,16 +48,12 @@ import {
 const TICK_MS = 30000;
 let selectedDayIndex = new Date().getDay();
 
-function getCourseType(title) {
-  if (title.startsWith("DM")) return "dm";
-  if (title.includes("COUNSELING")) return "counseling";
-  if (title.includes("MIS")) return "mis";
-  return "off";
+function getTypeLabel(type) {
+  return TYPE_META[type]?.label || "";
 }
 
-function getTypeLabel(type) {
-  const map = { mis: "Lecture", dm: "Lab", counseling: "Counseling", off: "Off" };
-  return map[type] || "";
+function isClassType(type) {
+  return type === "lecture" || type === "lab";
 }
 
 function formatDateLabel(date) {
@@ -94,11 +93,13 @@ function renderHeroChips(next) {
   container.innerHTML = "";
   if (!next) return;
 
-  const type = getCourseType(next.title);
   const chips = [
-    { icon: "bi-bookmark-fill", text: getTypeLabel(type), cls: `chip-type-${type}` },
+    { icon: "bi-bookmark-fill", text: getTypeLabel(next.type), cls: `chip-type-${next.type}` },
   ];
-  if (next.room) chips.push({ icon: "bi-geo-alt-fill", text: `Room ${next.room}`, cls: "" });
+  if (next.placeLabel) {
+    const icon = next.room ? "bi-geo-alt-fill" : next.place === "home" ? "bi-house-fill" : "bi-laptop";
+    chips.push({ icon, text: next.placeLabel, cls: "" });
+  }
   chips.push({ icon: "bi-calendar3", text: next.dayLabel, cls: "" });
 
   chips.forEach((c) => {
@@ -138,12 +139,11 @@ function renderLiveTracking(now) {
     topbarText.textContent = special.label;
   } else if (current) {
     currentStatus.textContent = current.title;
-    currentMeta.textContent = [current.timeRange, current.room ? `Room ${current.room}` : null]
-      .filter(Boolean)
-      .join(" · ");
+    currentMeta.textContent = [current.timeRange, current.placeLabel].filter(Boolean).join(" · ");
     nowCard.classList.add("is-active");
-    topbarChip.classList.add("is-class");
-    topbarText.textContent = "In class";
+    const inClass = isClassType(current.type);
+    topbarChip.classList.add(inClass ? "is-class" : "is-live");
+    topbarText.textContent = inClass ? "In class" : "Now";
 
     const total = current.end - current.start;
     const elapsed = now - current.start;
@@ -154,22 +154,20 @@ function renderLiveTracking(now) {
     progressFill.style.width = `${pct}%`;
     progressLabel.textContent = `${remainMin} min remaining`;
   } else {
-    currentStatus.textContent = "No class right now";
-    currentMeta.textContent = "You're free until the next slot";
+    currentStatus.textContent = "Free right now";
+    currentMeta.textContent = "Free until the next block";
     topbarChip.classList.add("is-live");
     topbarText.textContent = "Live";
   }
 
   if (next) {
     nextTitle.textContent = next.title;
-    nextMeta.textContent = [next.timeRange, next.room ? `Room ${next.room}` : null]
-      .filter(Boolean)
-      .join(" · ");
+    nextMeta.textContent = [next.timeRange, next.placeLabel].filter(Boolean).join(" · ");
     countdown.textContent = formatCountdown(getCountdownTo(next, now));
-    heroEyebrow.textContent = "Next class starts in";
+    heroEyebrow.textContent = "Next starts in";
     renderHeroChips(next);
   } else {
-    nextTitle.textContent = "No upcoming class";
+    nextTitle.textContent = "Nothing coming up";
     nextMeta.textContent = "Enjoy your break";
     countdown.textContent = "--:--:--";
     heroEyebrow.textContent = "Schedule clear";
@@ -194,28 +192,46 @@ function renderTodayList(now) {
   if (!events.length) {
     const empty = document.createElement("div");
     empty.className = "timeline-empty";
-    empty.textContent = "No classes scheduled today";
+    empty.textContent = "Nothing scheduled today";
     list.appendChild(empty);
     return;
   }
 
+  let eveningLabelShown = false;
   events.forEach((event) => {
+    if (event.segment === "evening" && !eveningLabelShown) {
+      eveningLabelShown = true;
+      list.appendChild(eveningSegmentLabel());
+    }
     const item = document.createElement("div");
     item.className = "timeline-item";
     item.setAttribute("role", "listitem");
     if (isSlotActive(event, now)) item.classList.add("is-active");
     if (isSlotPast(event, now)) item.classList.add("is-past");
-    const type = getCourseType(event.title);
     item.innerHTML = `
       <div class="timeline-rail"><div class="timeline-dot"></div><div class="timeline-line"></div></div>
       <div class="timeline-body">
         <div class="timeline-time">${event.timeRange}</div>
         <p class="timeline-title">${event.title}</p>
-        ${event.room ? `<div class="timeline-room"><i class="bi bi-geo-alt"></i> Room ${event.room}</div>` : ""}
-        <span class="type-badge type-${type}">${getTypeLabel(type)}</span>
+        ${placeMarkup(event)}
+        <span class="type-badge type-${event.type}">${getTypeLabel(event.type)}</span>
       </div>`;
     list.appendChild(item);
   });
+}
+
+function eveningSegmentLabel() {
+  const label = document.createElement("p");
+  label.className = "day-segment-label";
+  const profile = getEveningProfile() === "cooking" ? "Cooking" : "No cooking";
+  label.textContent = `Evening · ${profile}`;
+  return label;
+}
+
+function placeMarkup(event) {
+  if (!event.placeLabel) return "";
+  const icon = event.room ? "bi-geo-alt" : event.place === "home" ? "bi-house" : "bi-laptop";
+  return `<div class="timeline-room"><i class="bi ${icon}"></i> ${event.placeLabel}</div>`;
 }
 
 function renderDayPills(now) {
@@ -231,8 +247,9 @@ function renderDayPills(now) {
     if (i === todayIndex) btn.classList.add("is-today");
     if (i === selectedDayIndex) btn.classList.add("active");
     const special = ROUTINE.specialDays[i];
-    const slotCount = ROUTINE.week[i]?.length ?? 0;
-    btn.innerHTML = `${formatShortDay(i)}<span class="pill-sub">${special ? special.label : slotCount + " slots"}</span>`;
+    const blockCount =
+      (ROUTINE.week[i]?.length ?? 0) + (ROUTINE.evening[getEveningProfile()]?.length ?? 0);
+    btn.innerHTML = `${formatShortDay(i)}<span class="pill-sub">${special ? special.label : blockCount + " blocks"}</span>`;
     btn.addEventListener("click", () => {
       selectedDayIndex = i;
       renderDayPills(now);
@@ -254,40 +271,52 @@ function renderDayDetail(dayIndex) {
     return;
   }
 
-  const entries = ROUTINE.week[dayIndex] || [];
-  if (!entries.length) {
-    slotsEl.innerHTML = `<div class="timeline-empty">No classes</div>`;
+  const { events } = getEventsForDay(dayIndex, dateForWeekday(dayIndex));
+  if (!events.length) {
+    slotsEl.innerHTML = `<div class="timeline-empty">Nothing scheduled</div>`;
     return;
   }
 
-  entries.forEach((entry) => {
-    const slot = ROUTINE.slots[entry.slot];
-    const type = getCourseType(entry.title);
+  let eveningLabelShown = false;
+  events.forEach((event) => {
+    if (event.segment === "evening" && !eveningLabelShown) {
+      eveningLabelShown = true;
+      slotsEl.appendChild(eveningSegmentLabel());
+    }
     const row = document.createElement("div");
     row.className = "day-slot-row";
     row.innerHTML = `
-      <div class="day-slot-time">${slot.label.split(" - ")[0]}</div>
+      <div class="day-slot-time">${event.timeRange}</div>
       <div class="day-slot-info">
-        <p class="day-slot-title">${entry.title}</p>
-        ${entry.room ? `<div class="timeline-room"><i class="bi bi-geo-alt"></i> Room ${entry.room}</div>` : ""}
-        <span class="type-badge type-${type}">${getTypeLabel(type)}</span>
+        <p class="day-slot-title">${event.title}</p>
+        ${placeMarkup(event)}
+        <span class="type-badge type-${event.type}">${getTypeLabel(event.type)}</span>
       </div>`;
     slotsEl.appendChild(row);
   });
 }
 
-function getCellClass(title) {
-  const type = getCourseType(title);
-  if (type === "mis") return "cell-mis";
-  if (type === "dm") return "cell-dm";
-  if (type === "counseling") return "cell-counseling";
-  return "";
+function dateForWeekday(dayIndex, now = new Date()) {
+  const date = new Date(now);
+  const diff = dayIndex - date.getDay();
+  date.setDate(date.getDate() + diff);
+  date.setHours(12, 0, 0, 0);
+  return date;
+}
+
+function gridCovers(entry) {
+  const order = ROUTINE.slotOrder;
+  const index = order.indexOf(entry.grid.slot);
+  const span = entry.grid.span || 1;
+  const first = ROUTINE.slots[order[index]];
+  const last = ROUTINE.slots[order[index + span - 1]];
+  return { start: first.start, end: last.end, span };
 }
 
 function renderRoutineTable(now) {
   const tbody = document.getElementById("routine-body");
   tbody.innerHTML = "";
-  const slotOrder = ["s1", "s2", "s3", "s4", "s5"];
+  const slotOrder = ROUTINE.slotOrder;
   const todayIndex = now.getDay();
 
   for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
@@ -300,29 +329,72 @@ function renderRoutineTable(now) {
 
     if (special) {
       const td = document.createElement("td");
-      td.colSpan = 5;
+      td.colSpan = slotOrder.length;
       td.className = "special-day";
       td.textContent = special.label;
       tr.appendChild(td);
-    } else {
-      slotOrder.forEach((slotId) => {
-        const td = document.createElement("td");
-        const content = getCellContent(dayIndex, slotId);
-        if (content) {
-          td.className = getCellClass(content.title);
-          td.textContent = content.title;
-          if (content.room) {
-            const span = document.createElement("span");
-            span.className = "room-tag";
-            span.textContent = `R${content.room}`;
-            td.appendChild(span);
-          }
-        }
-        tr.appendChild(td);
-      });
+      tbody.appendChild(tr);
+      continue;
     }
+
+    const grouped = new Map();
+    (ROUTINE.week[dayIndex] || []).forEach((entry) => {
+      if (!entry.grid) return;
+      if (!grouped.has(entry.grid.slot)) grouped.set(entry.grid.slot, []);
+      grouped.get(entry.grid.slot).push(entry);
+    });
+
+    let skip = 0;
+    slotOrder.forEach((slotId) => {
+      if (skip > 0) {
+        skip -= 1;
+        return;
+      }
+      const group = grouped.get(slotId) || [];
+      const td = document.createElement("td");
+      if (group.length) {
+        const span = Math.max(...group.map((entry) => entry.grid.span || 1));
+        if (span > 1) td.colSpan = span;
+        skip = span - 1;
+        group.forEach((entry) => td.appendChild(gridBlock(entry)));
+      }
+      tr.appendChild(td);
+    });
     tbody.appendChild(tr);
   }
+}
+
+function gridBlock(entry) {
+  const block = document.createElement("div");
+  block.className = `grid-block cell-${entry.type}`;
+  const title = document.createElement("div");
+  title.textContent = entry.title;
+  block.appendChild(title);
+
+  const covered = gridCovers(entry);
+  if (entry.start !== covered.start || entry.end !== covered.end) {
+    const time = document.createElement("span");
+    time.className = "room-tag";
+    time.textContent = `${entry.start}–${entry.end}`;
+    block.appendChild(time);
+  }
+  if (entry.room) {
+    const room = document.createElement("span");
+    room.className = "room-tag";
+    room.textContent = `R${entry.room}`;
+    block.appendChild(room);
+  } else if (entry.place === "home") {
+    const place = document.createElement("span");
+    place.className = "room-tag";
+    place.textContent = "Home";
+    block.appendChild(place);
+  } else if (entry.place === "no-desk") {
+    const place = document.createElement("span");
+    place.className = "room-tag";
+    place.textContent = "No desk";
+    block.appendChild(place);
+  }
+  return block;
 }
 
 function updateReminderUI() {
@@ -372,6 +444,31 @@ function updateReminderUI() {
       updateReminderUI();
     });
     chipsEl.appendChild(chip);
+  });
+}
+
+function renderEveningToggle() {
+  const profile = getEveningProfile();
+  document.querySelectorAll("#evening-toggle button").forEach((btn) => {
+    const active = btn.dataset.profile === profile;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function initEveningToggle() {
+  renderEveningToggle();
+  document.querySelectorAll("#evening-toggle button").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (btn.dataset.profile === getEveningProfile()) return;
+      setEveningProfile(btn.dataset.profile);
+      renderEveningToggle();
+      await syncEveningProfileToSW();
+      tick();
+      if ((await getPermissionStatus()) === "granted") {
+        await scheduleNativeReminders(getUpcomingEvents(14));
+      }
+    });
   });
 }
 
@@ -443,7 +540,7 @@ function initBroadcastUI() {
 function getBlockedStepsHtml() {
   if (isNativePlatform()) {
     return [
-      "Phone Settings → Apps → CIS Routine → Notifications → Allow",
+      "Phone Settings → Apps → Sonia Nasrin Routine → Notifications → Allow",
       "Also check: Alarms & reminders (if shown on your device)",
       "Return here and tap Check again",
     ];
@@ -461,7 +558,7 @@ function getBlockedStepsHtml() {
     return [
       "Chrome: tap lock icon → Permissions → Notifications → Allow",
       "Chrome → Site settings → Notifications → mostakahmad.github.io → Allow",
-      "PWA: Phone Settings → Apps → CIS Routine → Notifications → On",
+      "PWA: Phone Settings → Apps → Sonia Nasrin Routine → Notifications → On",
     ];
   }
   return [
@@ -560,7 +657,7 @@ async function onEnableReminders() {
     await onRemindersGranted();
     const offsets = getEnabledReminderOffsets().map(formatOffsetLabel).join(", ");
     showNotification("Reminders enabled", {
-      body: `Alerts: ${offsets} before each class.`,
+      body: `Alerts: ${offsets} before each block.`,
       tag: "reminder-enabled",
     });
   }
@@ -587,16 +684,20 @@ function initCapacitorLifecycle() {
 }
 
 async function init() {
-  document.getElementById("dept-title").textContent = ROUTINE.department;
+  document.getElementById("dept-title").textContent = ROUTINE.person;
   document.getElementById("term-label").textContent = ROUTINE.term;
   document.getElementById("footer-note").textContent = ROUTINE.footerNote;
+  const version = document.getElementById("app-version");
+  if (version) version.textContent = `${ROUTINE.person} · ${ROUTINE.term}`;
 
   selectedDayIndex = new Date().getDay();
   initNavigation();
+  initEveningToggle();
   initReminderSettings();
   initBroadcastUI();
   initCapacitorLifecycle();
 
+  await syncEveningProfileToSW();
   await updateNotificationBadge();
   await updateBroadcastUI();
   tick();

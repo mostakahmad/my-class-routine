@@ -86,6 +86,8 @@ export async function showNotification(title, options = {}) {
   return false;
 }
 
+const NATIVE_HORIZON_MS = 48 * 60 * 60 * 1000;
+
 export async function scheduleNativeReminders(events) {
   if (!isNativePlatform()) return;
 
@@ -94,11 +96,13 @@ export async function scheduleNativeReminders(events) {
 
     const notifications = [];
     let id = 1;
+    const nowMs = Date.now();
+    const horizon = nowMs + NATIVE_HORIZON_MS;
 
     events.forEach((event) => {
       getEnabledReminderOffsets().forEach((offset) => {
         const at = new Date(event.start.getTime() - offset * 60 * 1000);
-        if (at <= new Date()) return;
+        if (at.getTime() <= nowMs || at.getTime() > horizon) return;
 
         const msg = buildReminderMessage(event, offset);
         notifications.push({

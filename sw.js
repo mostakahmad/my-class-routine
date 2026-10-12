@@ -1,16 +1,16 @@
-const CACHE_NAME = "cis-routine-v3";
+import {
+  buildReminderMessage,
+  getUpcomingEvents,
+  setRuntimeEveningProfile,
+} from "./js/scheduler.js";
+
+const CACHE_NAME = "cis-routine-v4";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./css/style.css",
-  "./js/routine-data.js",
-  "./js/reminder-settings.js",
-  "./js/broadcast-config.js",
-  "./js/broadcast.js",
-  "./js/scheduler.js",
-  "./js/notifications.js",
-  "./js/app.js",
+  "./assets/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/og-image.png",
@@ -29,7 +29,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+        keys.filter((k) => k !== CACHE_NAME && k !== "cis-app-settings" && k !== "notif-keys").map((k) => caches.delete(k))
       )
     )
   );
@@ -70,6 +70,10 @@ self.addEventListener("message", (event) => {
     }
   }
 
+  if (event.data?.type === "SYNC_EVENING_PROFILE") {
+    setRuntimeEveningProfile(event.data.profile);
+  }
+
   if (event.data?.type === "LOCAL_BROADCAST") {
     const { title, body, tag } = event.data.payload;
     event.waitUntil(
@@ -108,12 +112,14 @@ async function loadReminderOffsets() {
   return cachedReminderOffsets;
 }
 
-function formatOffsetLabelSW(minutes) {
-  if (minutes >= 60 && minutes % 60 === 0) {
-    const h = minutes / 60;
-    return h === 1 ? "1 hour" : `${h} hours`;
+async function loadEveningProfile() {
+  try {
+    const cache = await caches.open("cis-app-settings");
+    const res = await cache.match("evening-profile");
+    if (res) setRuntimeEveningProfile((await res.text()).trim());
+  } catch {
+    /* default nocook */
   }
-  return `${minutes} min`;
 }
 
 async function runBackgroundCheck() {
@@ -123,101 +129,29 @@ async function runBackgroundCheck() {
   const offsets = await loadReminderOffsets();
   if (!offsets.length) return;
 
+  await loadEveningProfile();
   const now = new Date();
-  const upcoming = [];
+  const upcoming = getUpcomingEvents(1, now);
 
-  for (let i = 0; i <= 1; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + i);
-    const dayIndex = date.getDay();
-
-    if (ROUTINE_SPECIAL_DAYS[dayIndex]) continue;
-
-    const entries = ROUTINE_WEEK[dayIndex] || [];
-    entries.forEach((entry) => {
-      const slot = ROUTINE_SLOTS[entry.slot];
-      const [sh, sm] = slot.start.split(":").map(Number);
-      const start = new Date(date);
-      start.setHours(sh, sm, 0, 0);
-
-      if (start > now) {
-        upcoming.push({
-          id: `${dayIndex}_${entry.slot}_${entry.title}`,
-          title: entry.title,
-          room: entry.room || null,
-          slotId: entry.slot,
-          start,
-          timeRange: `${slot.start} – ${slot.end}`,
-        });
-      }
-    });
-  }
-
-  offsets.forEach((offset) => {
-    upcoming.forEach((event) => {
+  for (const event of upcoming) {
+    for (const offset of offsets) {
       const reminderTime = new Date(event.start.getTime() - offset * 60000);
       const windowEnd = new Date(reminderTime.getTime() + 60000);
+      if (now < reminderTime || now >= windowEnd) continue;
+
       const dateStr = event.start.toISOString().slice(0, 10);
       const key = `notified_${dateStr}_${event.id}_${offset}`;
+      const cache = await caches.open("notif-keys");
+      if (await cache.match(key)) continue;
 
-      if (now >= reminderTime && now < windowEnd) {
-        caches.open("notif-keys").then(async (cache) => {
-          const stored = await cache.match(key);
-          if (stored) return;
-
-          await cache.put(key, new Response("1"));
-          const roomPart = event.room ? ` — Room ${event.room}` : "";
-          const title = `Class in ${formatOffsetLabelSW(offset)}`;
-          const body = `${event.title}${roomPart} · ${event.timeRange}`;
-
-          self.registration.showNotification(title, {
-            body,
-            icon: "./icons/icon-192.png",
-            tag: key,
-            vibrate: [200, 100, 200],
-          });
-        });
-      }
-    });
-  });
+      await cache.put(key, new Response("1"));
+      const message = buildReminderMessage(event, offset);
+      await self.registration.showNotification(message.title, {
+        body: message.body,
+        icon: "./icons/icon-192.png",
+        tag: key,
+        vibrate: [200, 100, 200],
+      });
+    }
+  }
 }
-
-const ROUTINE_SLOTS = {
-  s1: { start: "08:30", end: "10:00" },
-  s2: { start: "10:00", end: "11:30" },
-  s3: { start: "11:30", end: "13:00" },
-  s4: { start: "13:00", end: "14:30" },
-  s5: { start: "14:30", end: "16:00" },
-};
-
-const ROUTINE_SPECIAL_DAYS = { 5: true, 6: true };
-
-const ROUTINE_WEEK = {
-  0: [
-    { slot: "s2", title: "MIS101" },
-    { slot: "s3", title: "COUNSELING HOUR" },
-    { slot: "s4", title: "DM 23B", room: "702" },
-    { slot: "s5", title: "DM 23A", room: "702" },
-  ],
-  1: [
-    { slot: "s2", title: "COUNSELING HOUR" },
-    { slot: "s3", title: "MIS101" },
-    { slot: "s5", title: "COUNSELING HOUR" },
-  ],
-  2: [
-    { slot: "s1", title: "MIS101" },
-    { slot: "s2", title: "MIS101" },
-    { slot: "s3", title: "COUNSELING HOUR" },
-    { slot: "s4", title: "DM 23C", room: "702" },
-    { slot: "s5", title: "COUNSELING HOUR" },
-  ],
-  3: [
-    { slot: "s2", title: "DM 23C", room: "704" },
-    { slot: "s3", title: "DM 23B", room: "704" },
-    { slot: "s5", title: "DM 23A", room: "704" },
-  ],
-  4: [
-    { slot: "s2", title: "COUNSELING HOUR" },
-    { slot: "s3", title: "COUNSELING HOUR" },
-  ],
-};

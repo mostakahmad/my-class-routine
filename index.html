@@ -12,21 +12,21 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta
       name="description"
-      content="Department of CIS Summer 2026 class routine — live tracking, weekly schedule, and smart reminders 2 hours & 30 minutes before every class."
+      content="Sonia Nasrin Fall 2026 routine — live tracking from early morning through the evening, with reminders before every block."
     />
-    <title>CIS Routine — Summer 2026 | Department of CIS</title>
+    <title>Sonia Nasrin — Fall 2026 Routine</title>
 
     <!-- Canonical & SEO -->
     <link rel="canonical" href="https://mostakahmad.github.io/my-class-routine/" />
 
     <!-- Open Graph (Facebook, WhatsApp, LinkedIn, etc.) -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="CIS Class Routine" />
+    <meta property="og:site_name" content="Sonia Nasrin Routine" />
     <meta property="og:url" content="https://mostakahmad.github.io/my-class-routine/" />
-    <meta property="og:title" content="CIS Class Routine — Summer 2026" />
+    <meta property="og:title" content="Sonia Nasrin Routine — Fall 2026" />
     <meta
       property="og:description"
-      content="Live class tracking, weekly CIS schedule, and automatic reminders 2 hours & 30 minutes before MIS101, DM labs, and Counseling hours."
+      content="Live day tracking and reminders for Sonia Nasrin — Fall 2026 classes, IELTS, paper work, and evening routine."
     />
     <meta
       property="og:image"
@@ -34,15 +34,15 @@
     />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Department of CIS Summer 2026 Class Routine — live tracking and smart reminders" />
+    <meta property="og:image:alt" content="Sonia Nasrin Fall 2026 routine — live tracking and reminders" />
     <meta property="og:locale" content="en_US" />
 
     <!-- Twitter / X Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="CIS Class Routine — Summer 2026" />
+    <meta name="twitter:title" content="Sonia Nasrin Routine — Fall 2026" />
     <meta
       name="twitter:description"
-      content="Live class tracking, weekly schedule & smart reminders for Department of CIS — Summer 2026."
+      content="Live day tracking and reminders for Sonia Nasrin — Fall 2026."
     />
     <meta
       name="twitter:image"
@@ -50,11 +50,11 @@
     />
     <meta
       name="twitter:image:alt"
-      content="Department of CIS Summer 2026 Class Routine app preview"
+      content="Sonia Nasrin Fall 2026 routine app preview"
     />
 
     <!-- Apple / iMessage rich preview -->
-    <meta name="apple-mobile-web-app-title" content="CIS Routine" />
+    <meta name="apple-mobile-web-app-title" content="My Routine" />
     <link rel="manifest" href="manifest.json" />
     <link rel="icon" href="icons/icon-192.png" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -84,8 +84,8 @@
               <i class="bi bi-mortarboard-fill"></i>
             </div>
             <div>
-              <p class="brand-dept" id="dept-title">Department of CIS</p>
-              <p class="brand-term" id="term-label">Summer 2026</p>
+              <p class="brand-dept" id="dept-title">Sonia Nasrin</p>
+              <p class="brand-term" id="term-label">Fall 2026</p>
             </div>
           </div>
           <div class="topbar-status" id="topbar-chip">
@@ -101,7 +101,7 @@
           <!-- Hero countdown -->
           <div class="hero-card" id="hero-card">
             <div class="hero-glow" aria-hidden="true"></div>
-            <p class="hero-eyebrow" id="hero-eyebrow">Next class starts in</p>
+            <p class="hero-eyebrow" id="hero-eyebrow">Next starts in</p>
             <div class="countdown-ring" aria-live="polite">
               <span class="countdown" id="countdown">--:--:--</span>
             </div>
@@ -140,7 +140,7 @@
         <section id="view-routine" class="view" aria-label="Weekly routine" hidden>
           <div class="section-head">
             <h2 class="section-title">Weekly Routine</h2>
-            <span class="section-badge">Sun – Thu</span>
+            <span class="section-badge">Sun – Sat</span>
           </div>
 
           <div class="day-pills" id="day-pills" role="tablist"></div>
@@ -161,11 +161,13 @@
                 <thead>
                   <tr>
                     <th>Day</th>
+                    <th>5:20</th>
                     <th>8:30</th>
                     <th>10:00</th>
                     <th>11:30</th>
                     <th>1:00</th>
                     <th>2:30</th>
+                    <th>4:00</th>
                   </tr>
                 </thead>
                 <tbody id="routine-body"></tbody>
@@ -186,8 +188,8 @@
                 <i class="bi bi-bell-fill"></i>
               </div>
               <div class="settings-body">
-                <p class="settings-title">Class reminders</p>
-                <p class="settings-desc" id="reminder-summary">Alerts before each class slot</p>
+                <p class="settings-title">Reminders</p>
+                <p class="settings-desc" id="reminder-summary">Alerts before each block</p>
               </div>
               <button class="btn-toggle" id="btn-enable" type="button" aria-pressed="false">
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -210,8 +212,17 @@
           </div>
 
           <div class="surface-card reminder-times-card">
+            <p class="settings-block-title">Evening routine</p>
+            <p class="settings-block-desc">Same choice every day. Cooking starts at 5:30, after the last work block.</p>
+            <div class="segmented" id="evening-toggle" role="group" aria-label="Evening routine">
+              <button type="button" data-profile="nocook" aria-pressed="true">No cooking</button>
+              <button type="button" data-profile="cooking" aria-pressed="false">Cooking</button>
+            </div>
+          </div>
+
+          <div class="surface-card reminder-times-card">
             <p class="settings-block-title">Reminder times</p>
-            <p class="settings-block-desc">Choose when to get notified before class</p>
+            <p class="settings-block-desc">Choose when to get notified before each block</p>
             <div class="reminder-toggles" id="reminder-toggles"></div>
 
             <div class="custom-reminder-row">
@@ -286,7 +297,7 @@
 
           <div class="surface-card note-card" id="footer-note"></div>
 
-          <p class="app-version">CIS Routine · Summer 2026</p>
+          <p class="app-version" id="app-version">Sonia Nasrin · Fall 2026</p>
         </section>
       </main>
 

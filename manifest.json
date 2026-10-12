@@ -1,7 +1,7 @@
 {
-  "name": "CIS Class Routine",
-  "short_name": "CIS Routine",
-  "description": "Department of CIS class routine reminder — Summer 2026",
+  "name": "Sonia Nasrin Routine",
+  "short_name": "My Routine",
+  "description": "Sonia Nasrin day routine — Fall 2026",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#060d1a",
