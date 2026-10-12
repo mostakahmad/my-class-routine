@@ -20,11 +20,7 @@ cpSync(resolve(root, "css"), resolve(www, "css"), { recursive: true });
 cpSync(resolve(root, "icons"), resolve(www, "icons"), { recursive: true });
 cpSync(resolve(root, "manifest.json"), resolve(www, "manifest.json"));
 
-let html = readFileSync(resolve(root, "index.html"), "utf8");
-html = html.replace(
-  '<script type="module" src="/js/main.js"></script>',
-  '<script type="module" src="./assets/app.js"></script>'
-);
+const html = readFileSync(resolve(root, "index.html"), "utf8");
 writeFileSync(resolve(www, "index.html"), html);
 
 await build({
@@ -35,6 +31,13 @@ await build({
   target: ["es2020"],
   sourcemap: true,
 });
+
+mkdirSync(resolve(root, "assets"), { recursive: true });
+const bundle = readFileSync(resolve(www, "assets/app.js"), "utf8").replace(
+  /\n\/\/# sourceMappingURL=.*\n?$/,
+  "\n"
+);
+writeFileSync(resolve(root, "assets/app.js"), bundle);
 
 await build({
   entryPoints: [resolve(root, "sw.js")],

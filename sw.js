@@ -4,7 +4,7 @@ import {
   setRuntimeEveningProfile,
 } from "./js/scheduler.js";
 
-const CACHE_NAME = "cis-routine-v4";
+const CACHE_NAME = "cis-routine-v5";
 const ASSETS = [
   "./",
   "./index.html",
@@ -41,7 +41,10 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request).catch(() => caches.match("./index.html"));
+      return fetch(event.request).catch(() => {
+        if (event.request.mode === "navigate") return caches.match("./index.html");
+        return Response.error();
+      });
     })
   );
 });

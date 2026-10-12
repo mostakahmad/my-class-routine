@@ -29,7 +29,7 @@ async function registerServiceWorker() {
   if (isNativePlatform() || !("serviceWorker" in navigator)) return null;
 
   try {
-    swRegistration = await navigator.serviceWorker.register("./sw.js");
+    swRegistration = await navigator.serviceWorker.register("./sw.js", { type: "module" });
     await navigator.serviceWorker.ready;
     return swRegistration;
   } catch (err) {
