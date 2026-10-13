@@ -44,6 +44,15 @@ import {
   getNotificationBadgeText,
   refreshNativePermission,
 } from "./notifications.js";
+import { cancelAllNativeNotifications } from "./native-notifications.js";
+import {
+  applyProfileChrome,
+  getActiveProfile,
+  setActiveProfile,
+  syncProfileToSW,
+} from "./profile.js";
+import { checkMostakReminders, peekReminders, syncMostakRemindersToSW } from "./mostak-store.js";
+import { initMostakUI, renderMostak, updateMostakCountdown } from "./mostak-ui.js";
 
 const TICK_MS = 30000;
 let selectedDayIndex = new Date().getDay();
@@ -79,6 +88,84 @@ function switchView(viewName) {
     const active = btn.dataset.view === viewName;
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-current", active ? "page" : null);
+  });
+}
+
+const SONIA_VIEWS = new Set(["home", "routine", "settings"]);
+const MOSTAK_VIEWS = new Set(["m-today", "m-areas", "m-reminders"]);
+
+function profileLabels(profile) {
+  if (profile === "mostak") return { title: "Mostak Ahmad", term: "Daily tracker" };
+  return { title: ROUTINE.person, term: ROUTINE.term };
+}
+
+function activeViewName() {
+  return document.querySelector(".view.active")?.id?.replace(/^view-/, "") || "";
+}
+
+function applyActiveProfile() {
+  const profile = getActiveProfile();
+  applyProfileChrome(profile, profileLabels(profile));
+  const allowed = profile === "mostak" ? MOSTAK_VIEWS : SONIA_VIEWS;
+  if (!allowed.has(activeViewName())) {
+    switchView(profile === "mostak" ? "m-today" : "home");
+  }
+}
+
+function closeProfileMenu() {
+  const menu = document.getElementById("profile-menu");
+  const btn = document.getElementById("profile-switch");
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute("aria-expanded", "false");
+}
+
+async function chooseProfile(profile) {
+  closeProfileMenu();
+  if (profile !== "sonia" && profile !== "mostak") return;
+  if (profile === getActiveProfile()) return;
+  setActiveProfile(profile);
+  await syncProfileToSW();
+  applyActiveProfile();
+  if (isNativePlatform()) {
+    if (profile === "mostak") {
+      try {
+        await cancelAllNativeNotifications();
+      } catch {
+        /* plugin unavailable */
+      }
+    } else if ((await getPermissionStatus()) === "granted") {
+      await scheduleNativeReminders(getUpcomingEvents(14));
+    }
+  }
+  tick();
+}
+
+function initProfileSwitcher() {
+  const btn = document.getElementById("profile-switch");
+  const menu = document.getElementById("profile-menu");
+  if (!btn || !menu) return;
+
+  btn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const willOpen = menu.hidden;
+    menu.hidden = !willOpen;
+    btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  });
+
+  menu.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-profile]");
+    if (!option) return;
+    chooseProfile(option.dataset.profile);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (menu.hidden) return;
+    if (event.target.closest("#profile-menu")) return;
+    closeProfileMenu();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeProfileMenu();
   });
 }
 
@@ -637,6 +724,14 @@ async function onRemindersGranted() {
 }
 
 function tick() {
+  if (getActiveProfile() === "mostak") {
+    renderMostak();
+    checkMostakReminders(new Date(), (message) => {
+      showNotification(message.title, { body: message.body, tag: message.title });
+    }).catch(() => {});
+    return;
+  }
+
   const now = new Date();
   renderLiveTracking(now);
   renderTodayList(now);
@@ -667,7 +762,7 @@ async function onAppResume() {
   await refreshNativePermission();
   await updateNotificationBadge();
   const status = await getPermissionStatus();
-  if (status === "granted") {
+  if (status === "granted" && getActiveProfile() === "sonia") {
     await scheduleNativeReminders(getUpcomingEvents(14));
     initBroadcast();
     await updateBroadcastUI();
@@ -684,20 +779,23 @@ function initCapacitorLifecycle() {
 }
 
 async function init() {
-  document.getElementById("dept-title").textContent = ROUTINE.person;
-  document.getElementById("term-label").textContent = ROUTINE.term;
   document.getElementById("footer-note").textContent = ROUTINE.footerNote;
   const version = document.getElementById("app-version");
   if (version) version.textContent = `${ROUTINE.person} · ${ROUTINE.term}`;
 
   selectedDayIndex = new Date().getDay();
   initNavigation();
+  initProfileSwitcher();
+  initMostakUI();
+  applyActiveProfile();
   initEveningToggle();
   initReminderSettings();
   initBroadcastUI();
   initCapacitorLifecycle();
 
   await syncEveningProfileToSW();
+  await syncProfileToSW();
+  syncMostakRemindersToSW(peekReminders());
   await updateNotificationBadge();
   await updateBroadcastUI();
   tick();
@@ -708,6 +806,10 @@ async function init() {
   setInterval(tick, TICK_MS);
   setInterval(() => {
     const now = new Date();
+    if (getActiveProfile() === "mostak") {
+      updateMostakCountdown(now);
+      return;
+    }
     const next = getNextEvent(now);
     const countdown = document.getElementById("countdown");
     if (next) countdown.textContent = formatCountdown(getCountdownTo(next, now));

@@ -3,8 +3,14 @@ import {
   getUpcomingEvents,
   setRuntimeEveningProfile,
 } from "./js/scheduler.js";
+import {
+  formatClock,
+  isDue,
+  occurrenceOn,
+  reminderFireKey,
+} from "./js/mostak-store.js";
 
-const CACHE_NAME = "cis-routine-v5";
+const CACHE_NAME = "cis-routine-v6";
 const ASSETS = [
   "./",
   "./index.html",
@@ -17,6 +23,8 @@ const ASSETS = [
 ];
 
 let cachedReminderOffsets = [120, 60, 30, 15];
+let cachedProfile = "sonia";
+let cachedMostakReminders = [];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -77,6 +85,14 @@ self.addEventListener("message", (event) => {
     setRuntimeEveningProfile(event.data.profile);
   }
 
+  if (event.data?.type === "SYNC_ACTIVE_PROFILE") {
+    cachedProfile = event.data.profile === "mostak" ? "mostak" : "sonia";
+  }
+
+  if (event.data?.type === "SYNC_MOSTAK_REMINDERS" && Array.isArray(event.data.reminders)) {
+    cachedMostakReminders = event.data.reminders;
+  }
+
   if (event.data?.type === "LOCAL_BROADCAST") {
     const { title, body, tag } = event.data.payload;
     event.waitUntil(
@@ -125,9 +141,61 @@ async function loadEveningProfile() {
   }
 }
 
+async function loadActiveProfile() {
+  try {
+    const cache = await caches.open("cis-app-settings");
+    const res = await cache.match("active-profile");
+    if (res) {
+      const profile = (await res.text()).trim();
+      cachedProfile = profile === "mostak" ? "mostak" : "sonia";
+    }
+  } catch {
+    /* default sonia */
+  }
+  return cachedProfile;
+}
+
+async function loadMostakReminders() {
+  try {
+    const cache = await caches.open("cis-app-settings");
+    const res = await cache.match("mostak-reminders");
+    if (res) {
+      const reminders = await res.json();
+      if (Array.isArray(reminders)) cachedMostakReminders = reminders;
+    }
+  } catch {
+    /* keep last list */
+  }
+  return cachedMostakReminders;
+}
+
+async function runMostakBackgroundCheck() {
+  const reminders = await loadMostakReminders();
+  const now = new Date();
+  for (const reminder of reminders) {
+    if (!isDue(reminder, now)) continue;
+    const at = occurrenceOn(reminder, now);
+    const key = reminderFireKey(reminder, at);
+    const cache = await caches.open("notif-keys");
+    if (await cache.match(key)) continue;
+    await cache.put(key, new Response("1"));
+    await self.registration.showNotification(reminder.title, {
+      body: `Reminder · ${formatClock(reminder.time)}`,
+      icon: "./icons/icon-192.png",
+      tag: key,
+      vibrate: [200, 100, 200],
+    });
+  }
+}
+
 async function runBackgroundCheck() {
   const clients = await self.clients.matchAll({ type: "window" });
   if (clients.length > 0) return;
+
+  if ((await loadActiveProfile()) === "mostak") {
+    await runMostakBackgroundCheck();
+    return;
+  }
 
   const offsets = await loadReminderOffsets();
   if (!offsets.length) return;

@@ -79,14 +79,38 @@
       <!-- Top bar -->
       <header class="app-topbar">
         <div class="topbar-inner">
-          <div class="brand">
-            <div class="brand-icon" aria-hidden="true">
-              <i class="bi bi-mortarboard-fill"></i>
-            </div>
-            <div>
-              <p class="brand-dept" id="dept-title">Sonia Nasrin</p>
-              <p class="brand-term" id="term-label">Fall 2026</p>
-            </div>
+          <button
+            class="brand brand-switch"
+            id="profile-switch"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls="profile-menu"
+          >
+            <span class="brand-icon" id="brand-icon" aria-hidden="true">
+              <i class="bi bi-mortarboard-fill" id="brand-icon-glyph"></i>
+            </span>
+            <span class="brand-copy">
+              <span class="brand-dept" id="dept-title">Sonia Nasrin</span>
+              <span class="brand-term" id="term-label">Fall 2026</span>
+            </span>
+            <i class="bi bi-chevron-down brand-chevron" aria-hidden="true"></i>
+          </button>
+          <div class="profile-menu" id="profile-menu" role="listbox" hidden>
+            <button type="button" class="profile-option" role="option" data-profile="sonia">
+              <i class="bi bi-mortarboard-fill" aria-hidden="true"></i>
+              <span>
+                <strong>Sonia Nasrin</strong>
+                <small>Fall 2026 routine</small>
+              </span>
+            </button>
+            <button type="button" class="profile-option" role="option" data-profile="mostak">
+              <i class="bi bi-bullseye" aria-hidden="true"></i>
+              <span>
+                <strong>Mostak Ahmad</strong>
+                <small>Daily tracker</small>
+              </span>
+            </button>
           </div>
           <div class="topbar-status" id="topbar-chip">
             <span class="status-dot"></span>
@@ -299,21 +323,130 @@
 
           <p class="app-version" id="app-version">Sonia Nasrin · Fall 2026</p>
         </section>
+
+        <!-- MOSTAK TODAY -->
+        <section id="view-m-today" class="view" aria-label="Today" hidden>
+          <div class="hero-card" id="m-hero">
+            <div class="hero-glow" aria-hidden="true"></div>
+            <p class="hero-eyebrow">Today</p>
+            <p class="section-date" id="m-today-date"></p>
+            <div class="countdown-ring" aria-live="polite">
+              <span class="countdown" id="m-progress-count">0/0</span>
+            </div>
+            <h2 class="hero-title" id="m-progress-label">Areas on target</h2>
+            <p class="hero-meta" id="m-next-countdown">No upcoming reminder</p>
+          </div>
+          <div id="m-today-reminders"></div>
+          <div id="m-area-cards"></div>
+        </section>
+
+        <!-- MOSTAK AREAS -->
+        <section id="view-m-areas" class="view" aria-label="Areas" hidden>
+          <div class="section-head">
+            <h2 class="section-title">Areas</h2>
+            <span class="section-badge">Daily targets</span>
+          </div>
+          <div id="m-area-editor"></div>
+          <form class="surface-card m-create-card" id="m-add-area">
+            <p class="settings-block-title">Add area</p>
+            <label class="field-label" for="m-area-name">Name</label>
+            <input class="form-input" id="m-area-name" name="name" type="text" maxlength="60" placeholder="Robotics Plan" required>
+            <div class="m-editor-row">
+              <label class="m-field">
+                <span>Daily target</span>
+                <input class="form-input" name="target" type="number" min="1" max="99" value="1" required>
+              </label>
+              <label class="m-field">
+                <span>Unit</span>
+                <select class="form-input" name="unit">
+                  <option value="task">task</option>
+                  <option value="applications">applications</option>
+                  <option value="session">session</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn-add" type="submit"><i class="bi bi-plus-lg"></i> Add area</button>
+          </form>
+          <div class="surface-card m-create-card">
+            <p class="settings-block-title">Backup</p>
+            <p class="settings-block-desc">Saved on this device. Export a file before switching phones.</p>
+            <div class="m-backup-actions">
+              <button class="btn-add" id="m-export" type="button"><i class="bi bi-download"></i> Export</button>
+              <label class="btn-add m-import">
+                <i class="bi bi-upload"></i> Import
+                <input id="m-import" type="file" accept="application/json,.json" hidden>
+              </label>
+            </div>
+            <p class="m-feedback" id="m-backup-feedback" hidden></p>
+          </div>
+        </section>
+
+        <!-- MOSTAK REMINDERS -->
+        <section id="view-m-reminders" class="view" aria-label="Reminders" hidden>
+          <div class="section-head">
+            <h2 class="section-title">Reminders</h2>
+          </div>
+          <div id="m-reminder-list"></div>
+          <form class="surface-card m-create-card" id="m-add-reminder">
+            <p class="settings-block-title">Special reminder</p>
+            <label class="field-label" for="m-reminder-title">Title</label>
+            <input class="form-input" id="m-reminder-title" name="title" type="text" maxlength="80" placeholder="Anything to remember" required>
+            <label class="field-label" for="m-reminder-time">Time</label>
+            <input class="form-input" id="m-reminder-time" name="time" type="time" value="09:00" required>
+            <p class="field-label">Repeat</p>
+            <div class="segmented" id="m-repeat" role="group" aria-label="Repeat">
+              <button type="button" data-repeat="once" aria-pressed="false">Once</button>
+              <button type="button" data-repeat="daily" class="is-active" aria-pressed="true">Daily</button>
+              <button type="button" data-repeat="days" aria-pressed="false">Days</button>
+            </div>
+            <div id="m-once-wrap" hidden>
+              <label class="field-label" for="m-reminder-date">Date</label>
+              <input class="form-input" id="m-reminder-date" name="date" type="date">
+            </div>
+            <div class="m-day-picks" id="m-day-picks" hidden>
+              <button type="button" data-day="0" aria-pressed="false">Su</button>
+              <button type="button" data-day="1" aria-pressed="false">Mo</button>
+              <button type="button" data-day="2" aria-pressed="false">Tu</button>
+              <button type="button" data-day="3" aria-pressed="false">We</button>
+              <button type="button" data-day="4" aria-pressed="false">Th</button>
+              <button type="button" data-day="5" aria-pressed="false">Fr</button>
+              <button type="button" data-day="6" aria-pressed="false">Sa</button>
+            </div>
+            <p class="m-feedback is-bad" id="m-reminder-feedback" hidden></p>
+            <button class="btn-add" type="submit"><i class="bi bi-plus-lg"></i> Add reminder</button>
+          </form>
+          <div class="surface-card m-create-card">
+            <p class="settings-block-desc" id="m-alert-note"></p>
+            <button class="btn-add" id="m-enable-alerts" type="button" hidden>Enable alerts</button>
+          </div>
+        </section>
       </main>
 
       <!-- Bottom navigation -->
       <nav class="bottom-nav" aria-label="Main navigation">
-        <button class="nav-item active" data-view="home" type="button" aria-current="page">
+        <button class="nav-item active" data-nav="sonia" data-view="home" type="button" aria-current="page">
           <i class="bi bi-house-door-fill"></i>
           <span>Home</span>
         </button>
-        <button class="nav-item" data-view="routine" type="button">
+        <button class="nav-item" data-nav="sonia" data-view="routine" type="button">
           <i class="bi bi-calendar-week"></i>
           <span>Routine</span>
         </button>
-        <button class="nav-item" data-view="settings" type="button">
+        <button class="nav-item" data-nav="sonia" data-view="settings" type="button">
           <i class="bi bi-gear-fill"></i>
           <span>Settings</span>
+        </button>
+        <button class="nav-item" data-nav="mostak" data-view="m-today" type="button" hidden>
+          <i class="bi bi-bullseye"></i>
+          <span>Today</span>
+        </button>
+        <button class="nav-item" data-nav="mostak" data-view="m-areas" type="button" hidden>
+          <i class="bi bi-collection"></i>
+          <span>Areas</span>
+        </button>
+        <button class="nav-item" data-nav="mostak" data-view="m-reminders" type="button" hidden>
+          <i class="bi bi-bell-fill"></i>
+          <span>Reminders</span>
         </button>
       </nav>
     </div>

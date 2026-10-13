@@ -8,6 +8,7 @@ import {
 } from "./native-notifications.js";
 import { getEnabledReminderOffsets, syncReminderSettingsToSW } from "./reminder-settings.js";
 import { getUpcomingEvents, buildReminderMessage } from "./scheduler.js";
+import { getActiveProfile } from "./profile.js";
 
 export { isNativePlatform };
 
@@ -126,7 +127,11 @@ export async function initNotifications() {
     await syncReminderSettingsToSW();
   }
 
-  if (isNativePlatform() && (await getPermissionStatus()) === "granted") {
+  if (
+    isNativePlatform() &&
+    getActiveProfile() === "sonia" &&
+    (await getPermissionStatus()) === "granted"
+  ) {
     const events = getUpcomingEvents(14);
     await scheduleNativeReminders(events);
   }
